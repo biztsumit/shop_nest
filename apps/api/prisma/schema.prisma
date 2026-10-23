@@ -1,0 +1,16 @@
+// The database, described in one file. From this, Prisma:
+//   - writes the SQL migrations (npx prisma migrate dev)
+//   - generates a fully typed client into src/generated/prisma (npx prisma generate)
+// Models come in the next steps (catalog, users, orders...).
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  // NestJS 12 apps are ES modules, so the generated client is too
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+  // The connection URL is read from DATABASE_URL by prisma.config.ts
+}

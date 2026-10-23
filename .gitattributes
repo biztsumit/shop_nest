@@ -1,0 +1,8 @@
+# Store every text file with LF line endings, whatever the OS that wrote it, so diffs stay clean
+# and the Linux CI sees the same bytes as Windows
+* text=auto eol=lf
+
+# Binary: never touch
+*.ico binary
+*.png binary
+*.jpg binary

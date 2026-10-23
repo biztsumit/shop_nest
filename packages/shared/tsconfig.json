@@ -1,0 +1,19 @@
+{
+  // Built to plain JavaScript (ES modules) + .d.ts type files in dist/, which BOTH apps import:
+  // the NestJS API and the Next.js web app are ES modules too.
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "outDir": "dist",
+    "rootDir": "src",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true
+  },
+  "include": ["src"]
+}
