@@ -68,3 +68,18 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      # Start the BUILT API exactly as production does, and call it. Catches what tests can't:
+      # tests load the code through Vitest, which resolves packages differently from plain Node
+      # (a package installed in the wrong folder once passed every test and still crashed here).
+      - name: Smoke test the built API
+        working-directory: apps/api
+        env:
+          NODE_ENV: production
+        run: |
+          node dist/main.js > api.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4000/api/health; then exit 0; fi
+            sleep 1
+          done
+          echo "The API never became healthy. Its output:"; cat api.log; exit 1

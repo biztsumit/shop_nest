@@ -5,7 +5,7 @@ Built one step at a time. Each step: working code, tests, and what's new explain
 ## Phase 1: Foundation
 - [x] 1.1 Monorepo (npm workspaces + Turborepo): NestJS API, Next.js web, shared package; Prisma connected to PostgreSQL; health check end to end
 - [x] 1.2 CI on GitHub Actions: typecheck, lint, tests (with a PostgreSQL service)
-- [ ] 1.3 API conventions: validation pipe using the shared zod schemas, one error format (exception filter), structured logging with request ids, security headers, rate limiting
+- [x] 1.3 API conventions: validation pipe using the shared zod schemas, one error format (exception filter), structured logging with request ids, security headers, rate limiting
 
 ## Phase 2: Catalog
 - [ ] 2.1 Prisma models + migrations: categories, products, variants (size/colour), images
@@ -40,5 +40,5 @@ Built one step at a time. Each step: working code, tests, and what's new explain
 
 ## Phase 8: Production
 - [ ] 8.1 Docker images and docker-compose
-- [ ] 8.2 Deployment
+- [ ] 8.2 Deployment (behind the host's load balancer, which must add X-Forwarded-For: see README "Client IPs")
 - [ ] 8.3 Observability: error tracking, metrics, tracing

@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { validateEnv } from './config/env.js';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { loggingModule } from './common/logging.js';
+import { validateEnv, type Env } from './config/env.js';
 import { HealthModule } from './health/health.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
@@ -15,8 +18,22 @@ import { PrismaModule } from './prisma/prisma.module.js';
       envFilePath: process.env.NODE_ENV === 'test' ? '.env.test' : '.env',
       validate: validateEnv,
     }),
+    loggingModule,
+    // Rate limiting: at most RATE_LIMIT_PER_MINUTE requests per minute from one IP address.
+    // Stricter limits for sensitive routes (login...) come with those routes.
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<Env, true>) => [
+        { ttl: 60_000, limit: config.get('RATE_LIMIT_PER_MINUTE', { infer: true }) },
+      ],
+    }),
     PrismaModule,
     HealthModule,
+  ],
+  providers: [
+    // A GUARD decides whether a request may continue at all. APP_GUARD makes this one apply to
+    // every route; a route can opt out with @SkipThrottle()
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
 })
 export class AppModule {}
