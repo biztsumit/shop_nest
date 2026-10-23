@@ -1,0 +1,70 @@
+# Continuous integration: every push and pull request is checked on a fresh Linux machine,
+# from a clean clone, so "it works on my machine" problems show up before they reach main.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push to the same branch cancels the older run: no point finishing outdated checks
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Typecheck, lint, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # A real PostgreSQL next to the job, for the end-to-end tests. Throwaway credentials that
+    # only exist inside this CI run.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: shop_nest_test
+        ports:
+          - 5432:5432
+        # Wait until the database accepts connections before the steps start
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/shop_nest_test?schema=public
+      # Turborepo: plain log output in CI
+      TURBO_UI: "false"
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      # Exactly the versions in package-lock.json. Also runs the API's postinstall, which
+      # generates the Prisma client (it isn't committed).
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test
+
+      # Applies the Prisma migrations to the test database, then calls the real API over HTTP
+      - name: End-to-end tests
+        run: npm run test:e2e
+
+      - name: Build
+        run: npm run build
