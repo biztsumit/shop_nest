@@ -8,7 +8,7 @@ Built one step at a time. Each step: working code, tests, and what's new explain
 - [x] 1.3 API conventions: validation pipe using the shared zod schemas, one error format (exception filter), structured logging with request ids, security headers, rate limiting
 
 ## Phase 2: Catalog
-- [ ] 2.1 Prisma models + migrations: categories, products, variants (size/colour), images
+- [x] 2.1 Prisma models + migrations: categories, products, variants (size/colour), images
 - [ ] 2.2 Public endpoints: product list with search, filters, sorting and cursor pagination; product by slug
 - [ ] 2.3 Seed script with realistic demo data
 

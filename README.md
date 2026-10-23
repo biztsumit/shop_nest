@@ -36,6 +36,18 @@ npm run test:e2e   # the real API over HTTP, against the TEST database
 Then open http://localhost:4100. The browser only talks to the web app: `/api/*` is forwarded
 to the API (see `apps/web/next.config.ts`).
 
+## Changing the database
+
+1. Edit `apps/api/prisma/schema.prisma`
+2. `npm run db:migrate -w @shop/api -- --name what-changed`: writes a new SQL migration in
+   `prisma/migrations/`, applies it to your dev database, and regenerates the typed client
+3. Commit the migration together with the schema. CI and every other machine apply it with
+   `prisma migrate deploy`; never edit a migration that's already committed
+
+Rules Prisma's schema can't express (stock ≥ 0, slug format...) are CHECK constraints written
+by hand at the end of a migration: create it with `--create-only`, add the SQL, then run
+`db:migrate` again to apply it.
+
 ## Tests and their database
 
 End-to-end tests run against a **separate** database, so they never touch your dev data:

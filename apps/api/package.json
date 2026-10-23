@@ -20,7 +20,7 @@
     "dev": "nest start --watch",
     "typecheck": "tsc --noEmit",
     "postinstall": "prisma generate",
-    "db:migrate": "prisma migrate dev"
+    "db:migrate": "prisma migrate dev && prisma generate"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

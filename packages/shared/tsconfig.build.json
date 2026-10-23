@@ -1,0 +1,5 @@
+{
+  // The build (dist/) is what both apps import: tests stay out of it
+  "extends": "./tsconfig.json",
+  "exclude": ["src/**/*.test.ts"]
+}
