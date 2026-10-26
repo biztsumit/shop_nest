@@ -2,7 +2,7 @@ import { LoaderCircle } from "lucide-react";
 import type { ButtonHTMLAttributes } from "react";
 import { cn } from "@/lib/cn";
 
-type Variant = "primary" | "secondary" | "ghost" | "danger";
+type Variant = "primary" | "secondary" | "ghost" | "danger" | "inverse";
 type Size = "sm" | "md" | "lg" | "icon";
 
 const VARIANTS: Record<Variant, string> = {
@@ -10,6 +10,8 @@ const VARIANTS: Record<Variant, string> = {
   secondary: "border border-line-strong bg-surface text-fg hover:bg-subtle",
   ghost: "text-fg hover:bg-subtle",
   danger: "border border-danger/40 text-danger hover:bg-danger-soft",
+  // On a brand-coloured background (the home page banner): white, with brand text
+  inverse: "bg-white text-brand shadow-sm hover:bg-white/90",
 };
 
 const SIZES: Record<Size, string> = {

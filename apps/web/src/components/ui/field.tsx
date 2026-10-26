@@ -3,10 +3,7 @@
 import { Eye, EyeOff } from "lucide-react";
 import { useId, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 import { cn } from "@/lib/cn";
-
-// The look of every text input, select and textarea, shared so all forms match
-export const inputStyles =
-  "w-full rounded-lg border border-line-strong bg-surface px-3 text-sm outline-none transition placeholder:text-faint focus:border-brand focus:ring-3 focus:ring-brand/15 aria-[invalid=true]:border-danger disabled:opacity-60";
+import { inputStyles } from "./input-styles";
 
 type FieldProps = { label: string; error?: string; hint?: string };
 
