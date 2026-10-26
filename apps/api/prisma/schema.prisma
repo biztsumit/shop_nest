@@ -83,23 +83,24 @@ model Product {
 // What is actually bought: one size/colour combination of a product, with its own price and stock.
 // A product without options has exactly one variant with options {}.
 model ProductVariant {
-  id             String     @id @default(uuid(7)) @db.Uuid
-  productId      String     @map("product_id") @db.Uuid
-  product        Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
-  sku            String?    @unique @db.VarChar(64) // the shop's own stock code, optional
+  id             String      @id @default(uuid(7)) @db.Uuid
+  productId      String      @map("product_id") @db.Uuid
+  product        Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku            String?     @unique @db.VarChar(64) // the shop's own stock code, optional
   // {"size": "M", "colour": "Black"}
-  options        Json       @default("{}")
+  options        Json        @default("{}")
   // The same options as text in a fixed order ("colour=Black;size=M"), so the database can
   // refuse two variants of one product with identical options (JSON can't be UNIQUE in Prisma)
-  optionsKey     String     @default("") @map("options_key") @db.VarChar(255)
+  optionsKey     String      @default("") @map("options_key") @db.VarChar(255)
   price          Int // paise
   // The "was" price for sales (strikethrough ₹999 → ₹699). Must be higher than price.
-  compareAtPrice Int?       @map("compare_at_price")
-  stock          Int        @default(0)
-  position       Int        @default(0) // display order on the product page
-  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  compareAtPrice Int?        @map("compare_at_price")
+  stock          Int         @default(0)
+  position       Int         @default(0) // display order on the product page
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
   cartItems      CartItem[]
+  orderItems     OrderItem[]
 
   @@unique([productId, optionsKey])
   @@map("product_variants")
@@ -145,6 +146,7 @@ model User {
   updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
   cartItems       CartItem[]
   addresses       Address[]
+  orders          Order[]
 
   @@map("users")
 }
@@ -235,4 +237,81 @@ model Address {
 
   @@index([userId])
   @@map("addresses")
+}
+
+// ---------- Orders ----------
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  EXPIRED
+  REFUNDED
+
+  @@map("order_status")
+}
+
+// An order is a RECORD of what happened: names, prices and the address are COPIED in, so
+// later changes to the catalog or the address book never rewrite history.
+model Order {
+  id              String      @id @default(uuid(7)) @db.Uuid
+  // "SN000123", from a database SEQUENCE (a counter that never hands out the same number
+  // twice, even to two orders placed at the same instant). Shown to shoppers instead of the id.
+  number          String      @unique @default(dbgenerated("('SN'::text || lpad((nextval('order_number_seq'::regclass))::text, 6, '0'::text))")) @db.VarChar(20)
+  // Orders are never deleted with a user: they're the shop's accounting records
+  userId          String      @map("user_id") @db.Uuid
+  user            User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  status          OrderStatus @default(PENDING_PAYMENT)
+  // From the Idempotency-Key header: the same key twice = the same order (see OrdersService)
+  idempotencyKey  String      @map("idempotency_key") @db.VarChar(100)
+  // A fingerprint of the request that used the key: the key can't be reused for a different one
+  requestHash     String      @map("request_hash") @db.Char(64)
+  shippingAddress Json        @map("shipping_address")
+  // Paise. total = subtotal - discount + shipping_fee (CHECK orders_total_adds_up)
+  subtotal        Int
+  discount        Int         @default(0)
+  shippingFee     Int         @map("shipping_fee")
+  total           Int
+  couponCode      String?     @map("coupon_code") @db.VarChar(30)
+  // Pay before this, or the order expires and its stock goes back on sale
+  expiresAt       DateTime?   @map("expires_at") @db.Timestamptz(3)
+  paidAt          DateTime?   @map("paid_at") @db.Timestamptz(3)
+  shippedAt       DateTime?   @map("shipped_at") @db.Timestamptz(3)
+  deliveredAt     DateTime?   @map("delivered_at") @db.Timestamptz(3)
+  cancelledAt     DateTime?   @map("cancelled_at") @db.Timestamptz(3)
+  items           OrderItem[]
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([userId, idempotencyKey])
+  // "My orders", newest first
+  @@index([userId, id(sort: Desc)])
+  // The expiry job: "unpaid orders past their time"
+  @@index([status, expiresAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String          @id @default(uuid(7)) @db.Uuid
+  orderId     String          @map("order_id") @db.Uuid
+  order       Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  // Links back to the catalog while it still exists (for "buy again" and restocking);
+  // the copies below keep the order readable after the product is gone
+  variantId   String?         @map("variant_id") @db.Uuid
+  variant     ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  productSlug String          @map("product_slug") @db.VarChar(220)
+  productName String          @map("product_name") @db.VarChar(200)
+  options     Json            @default("{}")
+  sku         String?         @db.VarChar(64)
+  imageUrl    String?         @map("image_url") @db.VarChar(2000)
+  unitPrice   Int             @map("unit_price")
+  quantity    Int
+  lineTotal   Int             @map("line_total")
+  position    Int             @default(0)
+
+  @@index([orderId])
+  @@index([variantId])
+  @@map("order_items")
 }

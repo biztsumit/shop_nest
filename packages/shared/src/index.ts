@@ -8,3 +8,4 @@ export * from "./catalog.js";
 export * from "./auth.js";
 export * from "./address.js";
 export * from "./cart.js";
+export * from "./orders.js";

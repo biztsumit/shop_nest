@@ -44,6 +44,10 @@ const envSchema = z
     // Run the job WORKERS in this process. Jobs can always be queued; with several API servers
     // (or a separate worker process) you can choose which ones do the work.
     JOBS_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+
+    // ---------- Orders ----------
+    // How long an unpaid order holds its stock before it expires and the stock goes back on sale
+    ORDER_PAYMENT_MINUTES: z.coerce.number().int().min(5).max(24 * 60).default(30),
   })
   .superRefine((env, ctx) => {
     if (env.EMAIL_TRANSPORT === 'brevo' && !env.BREVO_API_KEY) {

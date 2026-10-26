@@ -122,6 +122,22 @@ keeps one in the browser and sends it to `POST /api/cart/merge` afterwards.
 | `DELETE /api/cart/items/:variantId`, `DELETE /api/cart` | remove one line, or everything |
 | `GET/POST /api/addresses`, `GET/PATCH/DELETE /api/addresses/:id` | up to 10 Indian addresses, one default |
 
+### Orders
+
+| | |
+|---|---|
+| `POST /api/orders/quote` | `{ couponCode? }`: subtotal, discount, delivery (free from ₹999, else ₹49), total |
+| `POST /api/orders` | `{ addressId, couponCode?, expectedTotal? }` + an **`Idempotency-Key`** header |
+| `GET /api/orders`, `GET /api/orders/:number` | my orders (`SN000123`) |
+| `POST /api/orders/:number/cancel` | only before paying |
+
+Placing an order is one database transaction: it takes the stock with conditional updates
+(`stock >= quantity`), copies names, prices and the address into the order, and empties those
+cart lines. Any problem rolls all of it back. Sending the same `Idempotency-Key` again returns
+the same order (`200`, `Idempotent-Replayed: true`) instead of placing a second one; a new
+checkout needs a new key. Unpaid orders expire after `ORDER_PAYMENT_MINUTES` (30), and their
+stock goes back on sale.
+
 ### Client IPs in production
 
 Rate limits and logs need each visitor's real IP. Requests reach the API through the Next.js

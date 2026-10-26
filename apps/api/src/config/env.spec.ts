@@ -21,6 +21,7 @@ describe('validateEnv', () => {
       EMAIL_FROM_NAME: 'Shop',
       EMAIL_REDIRECT_TO: undefined,
       JOBS_ENABLED: true,
+      ORDER_PAYMENT_MINUTES: 30,
       LOG_LEVEL: 'info',
       RATE_LIMIT_PER_MINUTE: 120,
       TRUST_PROXY: 'loopback',

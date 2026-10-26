@@ -20,7 +20,7 @@ Built one step at a time. Each step: working code, tests, and what's new explain
 
 ## Phase 4: Cart and checkout
 - [x] 4.1 Cart and addresses
-- [ ] 4.2 Orders in a database transaction: stock reservation, idempotency keys
+- [x] 4.2 Orders in a database transaction: stock reservation, idempotency keys
 - [ ] 4.3 Coupons and wishlist
 
 ## Phase 5: Payments
