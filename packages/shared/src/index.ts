@@ -9,3 +9,5 @@ export * from "./auth.js";
 export * from "./address.js";
 export * from "./cart.js";
 export * from "./orders.js";
+export * from "./coupons.js";
+export * from "./reviews.js";

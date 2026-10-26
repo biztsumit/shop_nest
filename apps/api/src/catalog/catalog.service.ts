@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Category, Page, ProductDetail, ProductListQuery, ProductSummary } from '@shop/shared';
 import type { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { ratingSummary } from '../reviews/rating.js';
 import { afterCursor, encodeCursor, productOrderBy } from './product-cursor.js';
 
 // The public catalog: everything a visitor may see. Only ACTIVE products, ever.
@@ -91,6 +92,7 @@ export class CatalogService {
       description: product.description,
       images: product.images,
       variants: product.variants.map((v) => ({ ...v, options: v.options as Record<string, string> })),
+      rating: await ratingSummary(this.prisma, product.id),
     };
   }
 
@@ -116,7 +118,7 @@ export class CatalogService {
 const escapeLike = (text: string): string => text.replace(/[\\%_]/g, (char) => `\\${char}`);
 
 // What a product card needs, and nothing more
-const summarySelect = {
+export const summarySelect = {
   id: true,
   slug: true,
   name: true,
@@ -129,9 +131,9 @@ const summarySelect = {
   _count: { select: { variants: true } },
 } satisfies Prisma.ProductSelect;
 
-type SummaryRow = Prisma.ProductGetPayload<{ select: typeof summarySelect }>;
+export type SummaryRow = Prisma.ProductGetPayload<{ select: typeof summarySelect }>;
 
-const toSummary = (p: SummaryRow): ProductSummary => ({
+export const toSummary = (p: SummaryRow): ProductSummary => ({
   id: p.id,
   slug: p.slug,
   name: p.name,

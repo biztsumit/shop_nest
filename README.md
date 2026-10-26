@@ -138,6 +138,18 @@ the same order (`200`, `Idempotent-Replayed: true`) instead of placing a second 
 checkout needs a new key. Unpaid orders expire after `ORDER_PAYMENT_MINUTES` (30), and their
 stock goes back on sale.
 
+**Coupons** (`couponCode` in the quote and the order): percentage (capped) or fixed amount,
+optional minimum, dates, total and per-shopper limits. A coupon that can't be used comes back
+as a 422 on the `couponCode` field with the reason. Redeeming locks the coupon row, so its
+usage limit can't be overrun by orders placed at the same moment. Cancelled and expired
+orders give their coupon use back. The seed adds `WELCOME10`, `FLAT200` and `FESTIVE15`.
+
+**Wishlist**: `GET /api/wishlist`, `GET /api/wishlist/ids`, `PUT/DELETE /api/wishlist/:productId`.
+
+**Reviews**: `GET /api/products/:slug/reviews` (public), and `GET/PUT/DELETE
+/api/products/:slug/reviews/mine` (one per shopper, editable). "Verified purchase" means a paid
+order with the product. The product page includes `rating: { average, count, distribution }`.
+
 ### Client IPs in production
 
 Rate limits and logs need each visitor's real IP. Requests reach the API through the Next.js

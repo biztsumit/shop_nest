@@ -21,7 +21,7 @@ Built one step at a time. Each step: working code, tests, and what's new explain
 ## Phase 4: Cart and checkout
 - [x] 4.1 Cart and addresses
 - [x] 4.2 Orders in a database transaction: stock reservation, idempotency keys
-- [ ] 4.3 Coupons and wishlist
+- [x] 4.3 Coupons, wishlist and reviews
 
 ## Phase 5: Payments
 - [ ] 5.1 Razorpay: create payment, verify signature

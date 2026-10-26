@@ -51,24 +51,26 @@ enum ProductStatus {
 }
 
 model Product {
-  id          String           @id @default(uuid(7)) @db.Uuid
-  name        String           @db.VarChar(200)
-  slug        String           @unique @db.VarChar(220)
-  description String           @default("")
-  status      ProductStatus    @default(DRAFT)
+  id            String           @id @default(uuid(7)) @db.Uuid
+  name          String           @db.VarChar(200)
+  slug          String           @unique @db.VarChar(220)
+  description   String           @default("")
+  status        ProductStatus    @default(DRAFT)
   // Deleting a category leaves its products uncategorised, never deletes them
-  categoryId  String?          @map("category_id") @db.Uuid
-  category    Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  variants    ProductVariant[]
-  images      ProductImage[]
+  categoryId    String?          @map("category_id") @db.Uuid
+  category      Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  variants      ProductVariant[]
+  images        ProductImage[]
   // A SUMMARY of the variants, kept up to date by a database trigger (see the migration
   // *_catalog_listing): the lowest variant price and the total stock. Stored here so the
   // product list can filter and sort by them in one simple, indexed query.
   // Never written by the app: the trigger owns them.
-  price       Int              @default(0)
-  stock       Int              @default(0)
-  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  price         Int              @default(0)
+  stock         Int              @default(0)
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  wishlistItems WishlistItem[]
+  reviews       Review[]
 
   // The product list's orders. ids are UUID v7 (time-ordered), so "newest first" is just id DESC
   @@index([status, id(sort: Desc)])
@@ -129,24 +131,27 @@ enum Role {
 }
 
 model User {
-  id              String         @id @default(uuid(7)) @db.Uuid
+  id                String             @id @default(uuid(7)) @db.Uuid
   // Always stored lower-case (a CHECK constraint makes sure): "Riya@Mail.com" and
   // "riya@mail.com" are the same person, so they can't make two accounts
-  email           String         @unique @db.VarChar(254)
-  name            String         @db.VarChar(100)
+  email             String             @unique @db.VarChar(254)
+  name              String             @db.VarChar(100)
   // An Argon2id hash ("$argon2id$v=19$m=19456,t=2,p=1$..."), never the password itself.
   // It never leaves the API: responses map users to a public shape without it.
-  passwordHash    String         @map("password_hash") @db.VarChar(255)
-  role            Role           @default(CUSTOMER)
+  passwordHash      String             @map("password_hash") @db.VarChar(255)
+  role              Role               @default(CUSTOMER)
   // When they clicked the link in the verification email (null = not verified yet)
-  emailVerifiedAt DateTime?      @map("email_verified_at") @db.Timestamptz(3)
-  emailTokens     EmailToken[]
-  refreshTokens   RefreshToken[]
-  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
-  cartItems       CartItem[]
-  addresses       Address[]
-  orders          Order[]
+  emailVerifiedAt   DateTime?          @map("email_verified_at") @db.Timestamptz(3)
+  emailTokens       EmailToken[]
+  refreshTokens     RefreshToken[]
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  cartItems         CartItem[]
+  addresses         Address[]
+  orders            Order[]
+  couponRedemptions CouponRedemption[]
+  wishlistItems     WishlistItem[]
+  reviews           Review[]
 
   @@map("users")
 }
@@ -256,34 +261,35 @@ enum OrderStatus {
 // An order is a RECORD of what happened: names, prices and the address are COPIED in, so
 // later changes to the catalog or the address book never rewrite history.
 model Order {
-  id              String      @id @default(uuid(7)) @db.Uuid
+  id               String            @id @default(uuid(7)) @db.Uuid
   // "SN000123", from a database SEQUENCE (a counter that never hands out the same number
   // twice, even to two orders placed at the same instant). Shown to shoppers instead of the id.
-  number          String      @unique @default(dbgenerated("('SN'::text || lpad((nextval('order_number_seq'::regclass))::text, 6, '0'::text))")) @db.VarChar(20)
+  number           String            @unique @default(dbgenerated("('SN'::text || lpad((nextval('order_number_seq'::regclass))::text, 6, '0'::text))")) @db.VarChar(20)
   // Orders are never deleted with a user: they're the shop's accounting records
-  userId          String      @map("user_id") @db.Uuid
-  user            User        @relation(fields: [userId], references: [id], onDelete: Restrict)
-  status          OrderStatus @default(PENDING_PAYMENT)
+  userId           String            @map("user_id") @db.Uuid
+  user             User              @relation(fields: [userId], references: [id], onDelete: Restrict)
+  status           OrderStatus       @default(PENDING_PAYMENT)
   // From the Idempotency-Key header: the same key twice = the same order (see OrdersService)
-  idempotencyKey  String      @map("idempotency_key") @db.VarChar(100)
+  idempotencyKey   String            @map("idempotency_key") @db.VarChar(100)
   // A fingerprint of the request that used the key: the key can't be reused for a different one
-  requestHash     String      @map("request_hash") @db.Char(64)
-  shippingAddress Json        @map("shipping_address")
+  requestHash      String            @map("request_hash") @db.Char(64)
+  shippingAddress  Json              @map("shipping_address")
   // Paise. total = subtotal - discount + shipping_fee (CHECK orders_total_adds_up)
-  subtotal        Int
-  discount        Int         @default(0)
-  shippingFee     Int         @map("shipping_fee")
-  total           Int
-  couponCode      String?     @map("coupon_code") @db.VarChar(30)
+  subtotal         Int
+  discount         Int               @default(0)
+  shippingFee      Int               @map("shipping_fee")
+  total            Int
+  couponCode       String?           @map("coupon_code") @db.VarChar(30)
   // Pay before this, or the order expires and its stock goes back on sale
-  expiresAt       DateTime?   @map("expires_at") @db.Timestamptz(3)
-  paidAt          DateTime?   @map("paid_at") @db.Timestamptz(3)
-  shippedAt       DateTime?   @map("shipped_at") @db.Timestamptz(3)
-  deliveredAt     DateTime?   @map("delivered_at") @db.Timestamptz(3)
-  cancelledAt     DateTime?   @map("cancelled_at") @db.Timestamptz(3)
-  items           OrderItem[]
-  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  expiresAt        DateTime?         @map("expires_at") @db.Timestamptz(3)
+  paidAt           DateTime?         @map("paid_at") @db.Timestamptz(3)
+  shippedAt        DateTime?         @map("shipped_at") @db.Timestamptz(3)
+  deliveredAt      DateTime?         @map("delivered_at") @db.Timestamptz(3)
+  cancelledAt      DateTime?         @map("cancelled_at") @db.Timestamptz(3)
+  items            OrderItem[]
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  couponRedemption CouponRedemption?
 
   @@unique([userId, idempotencyKey])
   // "My orders", newest first
@@ -314,4 +320,91 @@ model OrderItem {
   @@index([orderId])
   @@index([variantId])
   @@map("order_items")
+}
+
+// ---------- Coupons ----------
+
+enum CouponType {
+  PERCENT
+  FIXED
+
+  @@map("coupon_type")
+}
+
+model Coupon {
+  id           String             @id @default(uuid(7)) @db.Uuid
+  code         String             @unique @db.VarChar(30) // always capitals (CHECK coupons_code_format)
+  description  String             @default("") @db.VarChar(200)
+  type         CouponType
+  value        Int // PERCENT: 1-90 · FIXED: paise
+  minSubtotal  Int                @default(0) @map("min_subtotal")
+  maxDiscount  Int?               @map("max_discount") // a cap for percentage coupons
+  startsAt     DateTime?          @map("starts_at") @db.Timestamptz(3)
+  endsAt       DateTime?          @map("ends_at") @db.Timestamptz(3)
+  usageLimit   Int?               @map("usage_limit") // null = unlimited
+  perUserLimit Int                @default(1) @map("per_user_limit")
+  // How many orders hold it right now. Changed only while the coupon row is LOCKED, and given
+  // back when an order is cancelled or expires (CHECK: never above usage_limit)
+  usedCount    Int                @default(0) @map("used_count")
+  active       Boolean            @default(true)
+  redemptions  CouponRedemption[]
+  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("coupons")
+}
+
+// Which order used which coupon (one per order). Deleted when the order is cancelled or expires,
+// so the shopper can use the coupon again.
+model CouponRedemption {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  couponId  String   @map("coupon_id") @db.Uuid
+  coupon    Coupon   @relation(fields: [couponId], references: [id], onDelete: Restrict)
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderId   String   @unique @map("order_id") @db.Uuid
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  discount  Int
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([couponId, userId])
+  @@map("coupon_redemptions")
+}
+
+// ---------- Wishlist and reviews ----------
+
+model WishlistItem {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String   @map("product_id") @db.Uuid
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([userId, productId])
+  @@index([productId])
+  @@map("wishlist_items")
+}
+
+model Review {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  productId        String   @map("product_id") @db.Uuid
+  product          Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId           String   @map("user_id") @db.Uuid
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating           Int      @db.SmallInt // 1-5 (CHECK reviews_rating_range)
+  title            String   @db.VarChar(120)
+  body             String   @default("")
+  // They had a paid order containing this product when they wrote it
+  verifiedPurchase Boolean  @default(false) @map("verified_purchase")
+  // Hidden by an admin (spam, abuse): not shown, not counted in the stars
+  hidden           Boolean  @default(false)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  // One review per shopper per product (they edit it instead of adding more)
+  @@unique([productId, userId])
+  // The product page's list: visible reviews, newest first
+  @@index([productId, hidden, id(sort: Desc)])
+  @@map("reviews")
 }

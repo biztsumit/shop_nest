@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { paiseSchema } from "./money.js";
+import { ratingSummarySchema } from "./reviews.js";
 
 // The catalog's input rules. The SAME rules as the database's CHECK constraints
 // (apps/api/prisma/migrations/*_catalog), so bad input is stopped with a clear message in the
@@ -112,6 +113,7 @@ export const productDetailSchema = productSummarySchema.omit({ image: true }).ex
   description: z.string(),
   images: z.array(imageSchema),
   variants: z.array(productVariantSchema),
+  rating: ratingSummarySchema,
 });
 
 // A page of results, and the cursor to ask for the next one (null = this was the last page)

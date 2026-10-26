@@ -190,6 +190,21 @@ const buildProducts = () =>
     });
   });
 
+// Coupons to try at checkout. Upserted by code: re-running the seed resets their rules but
+// never their usage count (that belongs to real orders).
+const COUPONS = [
+  { code: 'WELCOME10', description: '10% off your first order', type: 'PERCENT', value: 10, maxDiscount: 50_000, minSubtotal: 0 },
+  { code: 'FLAT200', description: '₹200 off orders of ₹1,499 or more', type: 'FIXED', value: 20_000, maxDiscount: null, minSubtotal: 149_900 },
+  { code: 'FESTIVE15', description: '15% off, up to ₹750', type: 'PERCENT', value: 15, maxDiscount: 75_000, minSubtotal: 99_900 },
+] as const;
+
+export async function seedCoupons(prisma: PrismaClient): Promise<number> {
+  for (const { code, ...rules } of COUPONS) {
+    await prisma.coupon.upsert({ where: { code }, create: { code, ...rules }, update: rules });
+  }
+  return COUPONS.length;
+}
+
 export async function seedCatalog(prisma: PrismaClient): Promise<{ categories: number; products: number; variants: number }> {
   // Build and check EVERYTHING before writing anything: a mistake in the demo data stops the
   // seed with a clear message instead of leaving the database half-seeded
@@ -256,7 +271,8 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   try {
     const database = new URL(url).pathname.slice(1);
     const counts = await seedCatalog(prisma);
-    console.log(`Seeded "${database}": ${counts.categories} categories, ${counts.products} products, ${counts.variants} variants.`);
+    const coupons = await seedCoupons(prisma);
+    console.log(`Seeded "${database}": ${counts.categories} categories, ${counts.products} products, ${counts.variants} variants, ${coupons} coupons.`);
   } finally {
     await prisma.$disconnect();
   }
