@@ -16,7 +16,7 @@ Built one step at a time. Each step: working code, tests, and what's new explain
 - [x] 3.1 Users: register, login, Argon2id password hashing, short-lived access token, AccessTokenGuard + @CurrentUser()
 - [x] 3.2 Refresh tokens in httpOnly cookies (rotation, reuse detection, Origin check), logout and log out everywhere
 - [x] 3.3 Roles: @Auth('ADMIN') (role checked in the database), make-admin script, admin user list and role changes (never zero admins)
-- [ ] 3.4 Email verification and password reset (queued emails)
+- [x] 3.4 Email verification and password reset (queued emails)
 
 ## Phase 4: Cart and checkout
 - [ ] 4.1 Cart and addresses

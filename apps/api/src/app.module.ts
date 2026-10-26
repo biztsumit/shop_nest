@@ -6,7 +6,9 @@ import { loggingModule } from './common/logging.js';
 import { validateEnv, type Env } from './config/env.js';
 import { AuthModule } from './auth/auth.module.js';
 import { CatalogModule } from './catalog/catalog.module.js';
+import { EmailModule } from './email/email.module.js';
 import { HealthModule } from './health/health.module.js';
+import { JobsModule } from './jobs/jobs.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { UsersModule } from './users/users.module.js';
 
@@ -31,6 +33,8 @@ import { UsersModule } from './users/users.module.js';
       ],
     }),
     PrismaModule,
+    JobsModule,
+    EmailModule,
     HealthModule,
     CatalogModule,
     AuthModule,

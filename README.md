@@ -84,6 +84,25 @@ Every endpoint follows the same rules (set up in `apps/api/src/setup-app.ts`):
 The web app keeps the access token in memory only, and calls `refresh` when it expires or the
 page reloads. A refresh token used twice (a copy) ends that whole login.
 
+**Emails and passwords.**
+
+| | |
+|---|---|
+| `POST /api/auth/verify-email` | `{ token }` from the link emailed at sign-up |
+| `POST /api/auth/resend-verification` | a new link (logged in); older links stop working |
+| `POST /api/auth/forgot-password` | `{ email }`: always 202, so it never reveals who has an account |
+| `POST /api/auth/reset-password` | `{ token, password }`: logs out every device |
+| `POST /api/auth/change-password` | `{ currentPassword, newPassword }` (logged in): other devices are logged out |
+
+Link tokens are single-use and expire (verification 24 h, reset 1 h); only their hashes are
+stored. Emails are **queued** (pg-boss, in the `pgboss` schema of the same database) and sent by
+a background worker with retries. `EMAIL_TRANSPORT` decides how they go out:
+
+- `log` (default): written to `apps/api/.emails/`; open the `.html` files in a browser
+- `brevo`: really sent through Brevo (needs `BREVO_API_KEY`). While testing, set
+  `EMAIL_REDIRECT_TO=you@example.com` so every email goes to your own inbox
+- `memory`: kept in memory. The e2e tests always use this, whatever `.env.test` says
+
 **Admins.** Nobody can sign up as an admin. Make the first one on the server, after they've
 signed up: `npm run make-admin -w @shop/api -- their@email.com`. Admins then manage roles with
 `GET /api/admin/users` and `PATCH /api/admin/users/:id/role`. Admin routes (`@Auth('ADMIN')`)

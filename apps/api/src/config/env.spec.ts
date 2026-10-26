@@ -16,6 +16,11 @@ describe('validateEnv', () => {
       JWT_SECRET: valid.JWT_SECRET,
       ACCESS_TOKEN_MINUTES: 15,
       REFRESH_TOKEN_DAYS: 30,
+      EMAIL_TRANSPORT: 'log',
+      EMAIL_FROM_ADDRESS: 'shop@example.com',
+      EMAIL_FROM_NAME: 'Shop',
+      EMAIL_REDIRECT_TO: undefined,
+      JOBS_ENABLED: true,
       LOG_LEVEL: 'info',
       RATE_LIMIT_PER_MINUTE: 120,
       TRUST_PROXY: 'loopback',
@@ -50,5 +55,10 @@ describe('validateEnv', () => {
 
   it('lists every problem at once, not just the first', () => {
     expect(() => validateEnv({ PORT: 'abc', WEB_ORIGIN: 'not a url' })).toThrow(/PORT[\s\S]*DATABASE_URL|DATABASE_URL[\s\S]*PORT/);
+  });
+
+  it('really sending email needs a Brevo key', () => {
+    expect(() => validateEnv({ ...valid, EMAIL_TRANSPORT: 'brevo' })).toThrow(/BREVO_API_KEY: is required/);
+    expect(validateEnv({ ...valid, EMAIL_TRANSPORT: 'brevo', BREVO_API_KEY: 'xkeysib-test' }).EMAIL_TRANSPORT).toBe('brevo');
   });
 });

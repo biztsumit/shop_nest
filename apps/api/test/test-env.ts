@@ -17,7 +17,9 @@ export const loadTestEnv = (): Record<string, string> => {
         'Create apps/api/.env.test with DATABASE_URL=.../shop_nest_test (see .env.example).',
     );
   }
-  return env;
+  // Tests NEVER send real email, whatever .env.test or the shell says: emails are kept in
+  // memory, where tests read them (links, tokens) and nothing leaves the machine
+  return { ...env, EMAIL_TRANSPORT: 'memory', EMAIL_REDIRECT_TO: '' };
 };
 
 const pickDefined = (env: NodeJS.ProcessEnv): Record<string, string> =>

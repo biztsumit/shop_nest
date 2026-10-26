@@ -1,7 +1,22 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
-import { loginSchema, registerSchema, type AuthResponse, type Login, type Register, type User } from '@shop/shared';
+import {
+  changePasswordSchema,
+  forgotPasswordSchema,
+  loginSchema,
+  registerSchema,
+  resetPasswordSchema,
+  verifyEmailSchema,
+  type AuthResponse,
+  type ChangePassword,
+  type ForgotPassword,
+  type Login,
+  type Register,
+  type ResetPassword,
+  type User,
+  type VerifyEmail,
+} from '@shop/shared';
 import type { Request, Response } from 'express';
 import type { Env } from '../config/env.js';
 import { Auth } from './auth.decorator.js';
@@ -89,6 +104,59 @@ export class AuthController {
   async logoutAll(@CurrentUser() user: AuthUser, @Res({ passthrough: true }) res: Response): Promise<void> {
     await this.auth.logoutEverywhere(user.id);
     clearRefreshCookie(res, this.secureCookies);
+  }
+
+  // ---------- Email verification ----------
+
+  // POST /api/auth/verify-email  { token }  (the web app's /verify-email page sends it)
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  @Throttle(STRICT)
+  verifyEmail(@Body({ schema: verifyEmailSchema }) body: VerifyEmail): Promise<User> {
+    return this.auth.verifyEmail(body.token);
+  }
+
+  // POST /api/auth/resend-verification: a new link (the old one stops working)
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @Throttle(STRICT)
+  @Auth()
+  resendVerification(@CurrentUser() user: AuthUser): Promise<void> {
+    return this.auth.resendVerification(user.id);
+  }
+
+  // ---------- Passwords ----------
+
+  // POST /api/auth/forgot-password  { email }
+  // 202 Accepted, ALWAYS: the same answer whether or not the email has an account
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @Throttle(STRICT)
+  forgotPassword(@Body({ schema: forgotPasswordSchema }) body: ForgotPassword): Promise<void> {
+    return this.auth.forgotPassword(body.email);
+  }
+
+  // POST /api/auth/reset-password  { token, password }: every login ends; log in with the new one
+  @Post('reset-password')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Throttle(STRICT)
+  async resetPassword(@Body({ schema: resetPasswordSchema }) body: ResetPassword, @Res({ passthrough: true }) res: Response): Promise<void> {
+    await this.auth.resetPassword(body);
+    clearRefreshCookie(res, this.secureCookies);
+  }
+
+  // POST /api/auth/change-password  { currentPassword, newPassword }
+  // Other devices are logged out; this one gets a fresh session
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  @Throttle(STRICT)
+  @Auth()
+  async changePassword(
+    @CurrentUser() user: AuthUser,
+    @Body({ schema: changePasswordSchema }) body: ChangePassword,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthResponse> {
+    return this.send(await this.auth.changePassword(user.id, body), res);
   }
 
   // GET /api/auth/me  (Authorization: Bearer <access token>)

@@ -15,4 +15,10 @@ export const resetDatabase = async (prisma: PrismaClient): Promise<void> => {
   if (tables.length > 0) {
     await prisma.$executeRawUnsafe(`TRUNCATE ${tables.map((t) => `"${t.tablename}"`).join(', ')} CASCADE`);
   }
+  // Queued jobs too (emails from earlier tests would otherwise queue up ahead of this test's),
+  // but not pg-boss's own bookkeeping tables
+  const [jobs] = await prisma.$queryRaw<Array<{ exists: boolean }>>`SELECT to_regclass('pgboss.job') IS NOT NULL AS exists`;
+  if (jobs?.exists) {
+    await prisma.$executeRawUnsafe('DELETE FROM pgboss.job');
+  }
 };

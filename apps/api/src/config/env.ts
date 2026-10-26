@@ -29,6 +29,26 @@ const envSchema = z
       .string()
       .default('loopback')
       .transform((value) => (/^\d+$/.test(value) ? Number(value) : value)),
+
+    // ---------- Email ----------
+    // log: written to apps/api/.emails/*.html (development) · memory: kept for tests to read,
+    // never sent · brevo: really sent, through Brevo's HTTP API
+    EMAIL_TRANSPORT: z.enum(['log', 'memory', 'brevo']).default('log'),
+    BREVO_API_KEY: z.string().optional(),
+    EMAIL_FROM_ADDRESS: z.email().default('shop@example.com'),
+    EMAIL_FROM_NAME: z.string().min(1).default('Shop'),
+    // Send EVERY email to this one address instead (a safety net while developing with brevo)
+    EMAIL_REDIRECT_TO: z.preprocess((v) => (v === '' ? undefined : v), z.email().optional()),
+
+    // ---------- Background jobs ----------
+    // Run the job WORKERS in this process. Jobs can always be queued; with several API servers
+    // (or a separate worker process) you can choose which ones do the work.
+    JOBS_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+  })
+  .superRefine((env, ctx) => {
+    if (env.EMAIL_TRANSPORT === 'brevo' && !env.BREVO_API_KEY) {
+      ctx.addIssue({ code: 'custom', path: ['BREVO_API_KEY'], message: 'is required when EMAIL_TRANSPORT=brevo' });
+    }
   })
   .transform((env) => ({ ...env, LOG_LEVEL: env.LOG_LEVEL ?? (env.NODE_ENV === 'test' ? 'silent' : 'info') }));
 

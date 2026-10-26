@@ -1,11 +1,14 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import type { AuthResponse, Login, Register, User } from '@shop/shared';
+import type { AuthResponse, ChangePassword, Login, Register, ResetPassword, User } from '@shop/shared';
 import type { Env } from '../config/env.js';
 import { Prisma, type User as UserRow } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { AccessTokenPayload } from './auth-user.js';
+import { EmailQueue } from '../email/email-queue.js';
+import { passwordChangedMessage, resetPasswordMessage, verifyEmailMessage } from '../email/templates.js';
+import { EmailTokensService } from './email-tokens.service.js';
 import { PasswordService } from './password.service.js';
 import { RefreshTokensService, SESSION_ENDED, type IssuedRefreshToken } from './refresh-tokens.service.js';
 import { ACCESS_AUDIENCE, TOKEN_ISSUER } from './tokens.js';
@@ -20,18 +23,25 @@ export type Session = { response: AuthResponse; refresh: IssuedRefreshToken };
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly passwords: PasswordService,
     private readonly refreshTokens: RefreshTokensService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService<Env, true>,
+    private readonly emailTokens: EmailTokensService,
+    private readonly emails: EmailQueue,
   ) {}
 
   async register({ name, email, password }: Register): Promise<Session> {
     const passwordHash = await this.passwords.hash(password);
     try {
       const user = await this.prisma.user.create({ data: { name, email, passwordHash } });
+      // Not awaited as part of sign-up's success: if queueing the email fails, the account
+      // still exists and the user can ask for a new link ("resend")
+      await this.sendVerification(user).catch((err: unknown) => this.logger.error({ err, userId: user.id }, 'Could not queue the verification email'));
       return this.startSession(user);
     } catch (err) {
       // P2002 = a UNIQUE rule said no: the email is taken. Checking first ("does it exist?",
@@ -73,6 +83,71 @@ export class AuthService {
     return this.refreshTokens.revokeAllForUser(userId);
   }
 
+  // ---------- Email verification ----------
+
+  async verifyEmail(token: string): Promise<User> {
+    const userId = await this.emailTokens.consume(token, 'VERIFY_EMAIL');
+    // updateMany + "not verified yet": verifying twice keeps the FIRST date
+    await this.prisma.user.updateMany({ where: { id: userId, emailVerifiedAt: null }, data: { emailVerifiedAt: new Date() } });
+    return this.me(userId);
+  }
+
+  async resendVerification(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException(SESSION_ENDED);
+    if (user.emailVerifiedAt) throw new ConflictException('Your email address is already confirmed.');
+    await this.sendVerification(user);
+  }
+
+  // ---------- Passwords ----------
+
+  // Always the same answer, whether or not the email has an account: otherwise this form
+  // would tell anyone which emails are registered here
+  async forgotPassword(email: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) return;
+    const token = await this.emailTokens.issue(user.id, 'RESET_PASSWORD');
+    await this.emails.enqueue(resetPasswordMessage(user.email, user.name, this.link('/reset-password', token)));
+  }
+
+  async resetPassword({ token, password }: ResetPassword): Promise<void> {
+    const userId = await this.emailTokens.consume(token, 'RESET_PASSWORD');
+    await this.setPassword(userId, password);
+    // Opening the link proves they own the inbox: a good moment to confirm the email too
+    await this.prisma.user.updateMany({ where: { id: userId, emailVerifiedAt: null }, data: { emailVerifiedAt: new Date() } });
+  }
+
+  // From the account page, while logged in: needs the CURRENT password (a borrowed laptop with
+  // a logged-in browser mustn't be enough to take over the account)
+  async changePassword(userId: string, { currentPassword, newPassword }: ChangePassword): Promise<Session> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException(SESSION_ENDED);
+    if (!(await this.passwords.verify(user.passwordHash, currentPassword))) {
+      throw new UnauthorizedException('Your current password is not right.');
+    }
+    await this.setPassword(userId, newPassword);
+    // Every other device was logged out: this one gets a fresh login
+    return this.startSession(user);
+  }
+
+  // A new password ends EVERY login (if the old one leaked, so may the sessions made with it),
+  // and tells the owner by email: if it wasn't them, they know at once
+  private async setPassword(userId: string, password: string): Promise<void> {
+    const user = await this.prisma.user.update({ where: { id: userId }, data: { passwordHash: await this.passwords.hash(password) } });
+    await this.refreshTokens.revokeAllForUser(userId);
+    await this.emails.enqueue(passwordChangedMessage(user.email, user.name));
+  }
+
+  private async sendVerification(user: UserRow): Promise<void> {
+    const token = await this.emailTokens.issue(user.id, 'VERIFY_EMAIL');
+    await this.emails.enqueue(verifyEmailMessage(user.email, user.name, this.link('/verify-email', token)));
+  }
+
+  // Email links open the WEB APP, which calls the API with the token
+  private link(path: string, token: string): string {
+    return `${this.config.get('WEB_ORIGIN', { infer: true })}${path}?token=${token}`;
+  }
+
   async me(userId: string): Promise<User> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     // A valid token for an account that has since been deleted
@@ -106,4 +181,5 @@ export const toPublicUser = (user: UserRow): User => ({
   email: user.email,
   name: user.name,
   role: user.role,
+  emailVerified: user.emailVerifiedAt !== null,
 });

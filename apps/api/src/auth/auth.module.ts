@@ -5,6 +5,7 @@ import type { Env } from '../config/env.js';
 import { AccessTokenGuard } from './access-token.guard.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
+import { EmailTokensService } from './email-tokens.service.js';
 import { PasswordService } from './password.service.js';
 import { RefreshTokensService } from './refresh-tokens.service.js';
 import { RolesGuard } from './roles.guard.js';
@@ -25,7 +26,7 @@ import { TrustedOriginGuard } from './trusted-origin.guard.js';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, PasswordService, RefreshTokensService, AccessTokenGuard, RolesGuard, TrustedOriginGuard],
+  providers: [AuthService, PasswordService, RefreshTokensService, EmailTokensService, AccessTokenGuard, RolesGuard, TrustedOriginGuard],
   // Other modules protect their routes with these guards, so they (and the JWT service) are shared
   exports: [AccessTokenGuard, RolesGuard, JwtModule],
 })

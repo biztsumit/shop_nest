@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { AdminUser, Page, Role } from '@shop/shared';
 import type { User as UserRow } from '../generated/prisma/client.js';
+import { toPublicUser } from '../auth/auth.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
@@ -46,10 +47,5 @@ export class UsersService {
   }
 }
 
-const toAdminUser = (user: UserRow): AdminUser => ({
-  id: user.id,
-  email: user.email,
-  name: user.name,
-  role: user.role,
-  createdAt: user.createdAt.toISOString(),
-});
+// The public fields (one definition, in AuthService), plus what only admins see
+const toAdminUser = (user: UserRow): AdminUser => ({ ...toPublicUser(user), createdAt: user.createdAt.toISOString() });

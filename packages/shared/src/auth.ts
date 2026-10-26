@@ -41,6 +41,7 @@ export const userSchema = z.object({
   email: z.string(),
   name: z.string(),
   role: roleSchema,
+  emailVerified: z.boolean(),   // clicked the link in the verification email
 });
 
 // The answer to register and login
@@ -65,3 +66,29 @@ export const changeRoleSchema = z.object({ role: roleSchema });
 
 export type AdminUser = z.infer<typeof adminUserSchema>;
 export type ChangeRole = z.infer<typeof changeRoleSchema>;
+
+// ---------- Email links and passwords ----------
+
+// The token from an email link (?token=...): 32 random bytes, base64url
+const linkTokenSchema = z.string().trim().regex(/^[\w-]{20,100}$/, "this link is not valid");
+
+export const verifyEmailSchema = z.object({ token: linkTokenSchema });
+
+export const forgotPasswordSchema = z.object({ email: emailSchema });
+
+export const resetPasswordSchema = z.object({ token: linkTokenSchema, password: newPasswordSchema });
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "is required").max(128),
+    newPassword: newPasswordSchema,
+  })
+  .refine((c) => c.newPassword !== c.currentPassword, {
+    message: "must be different from your current password",
+    path: ["newPassword"],
+  });
+
+export type VerifyEmail = z.infer<typeof verifyEmailSchema>;
+export type ForgotPassword = z.infer<typeof forgotPasswordSchema>;
+export type ResetPassword = z.infer<typeof resetPasswordSchema>;
+export type ChangePassword = z.infer<typeof changePasswordSchema>;

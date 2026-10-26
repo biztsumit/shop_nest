@@ -127,18 +127,21 @@ enum Role {
 }
 
 model User {
-  id            String         @id @default(uuid(7)) @db.Uuid
+  id              String         @id @default(uuid(7)) @db.Uuid
   // Always stored lower-case (a CHECK constraint makes sure): "Riya@Mail.com" and
   // "riya@mail.com" are the same person, so they can't make two accounts
-  email         String         @unique @db.VarChar(254)
-  name          String         @db.VarChar(100)
+  email           String         @unique @db.VarChar(254)
+  name            String         @db.VarChar(100)
   // An Argon2id hash ("$argon2id$v=19$m=19456,t=2,p=1$..."), never the password itself.
   // It never leaves the API: responses map users to a public shape without it.
-  passwordHash  String         @map("password_hash") @db.VarChar(255)
-  role          Role           @default(CUSTOMER)
-  refreshTokens RefreshToken[]
-  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  passwordHash    String         @map("password_hash") @db.VarChar(255)
+  role            Role           @default(CUSTOMER)
+  // When they clicked the link in the verification email (null = not verified yet)
+  emailVerifiedAt DateTime?      @map("email_verified_at") @db.Timestamptz(3)
+  emailTokens     EmailToken[]
+  refreshTokens   RefreshToken[]
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@map("users")
 }
@@ -161,4 +164,27 @@ model RefreshToken {
   @@index([userId])
   @@index([familyId])
   @@map("refresh_tokens")
+}
+
+enum EmailTokenPurpose {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+
+  @@map("email_token_purpose")
+}
+
+// The single-use secrets inside email links ("verify your email", "reset your password").
+// Like refresh tokens, only a SHA-256 hash is kept, and each works once, before it expires.
+model EmailToken {
+  id        String            @id @default(uuid(7)) @db.Uuid
+  userId    String            @map("user_id") @db.Uuid
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose   EmailTokenPurpose
+  tokenHash String            @unique @map("token_hash") @db.Char(64)
+  expiresAt DateTime          @map("expires_at") @db.Timestamptz(3)
+  usedAt    DateTime?         @map("used_at") @db.Timestamptz(3)
+  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([userId, purpose])
+  @@map("email_tokens")
 }
