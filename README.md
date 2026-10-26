@@ -167,6 +167,21 @@ processed once. This records payments even when the shopper closes the tab befor
 reports back. As a last safety net, a reconciliation job asks Razorpay about payments still
 unsettled after 2 minutes.
 
+### Background jobs
+
+pg-boss keeps jobs in the `pgboss` schema of the same database (no Redis). Besides queued
+emails, three jobs run on a timetable (India time; with several servers, each run happens once):
+
+| Job | When | What |
+|---|---|---|
+| `orders.expire` | every minute | unpaid orders past `ORDER_PAYMENT_MINUTES` expire; stock and coupon uses go back |
+| `payments.reconcile` | every 5 minutes | asks Razorpay about payments nobody reported (if keys are set) |
+| `maintenance.clean-up` | 03:30 nightly | deletes expired tokens and old webhook records |
+
+`JOBS_ENABLED=false` stops this process from running jobs (useful with several servers);
+`JOB_SCHEDULES_ENABLED=false` stops the timetable. The e2e tests turn the timetable off and call
+the same functions directly.
+
 **Refunds** (admins): `GET/POST /api/admin/orders/:number/refunds` with `{ amount?, reason,
 restock? }`. Leaving out `amount` refunds everything not yet refunded. The amount is reserved in
 the database (under a row lock) before Razorpay is asked, and released if Razorpay refuses, so

@@ -25,6 +25,8 @@ export const loadTestEnv = (): Record<string, string> => {
     ...env,
     EMAIL_TRANSPORT: 'memory',
     EMAIL_REDIRECT_TO: '',
+    // Tests run the scheduled jobs' functions themselves, at the moments they choose
+    JOB_SCHEDULES_ENABLED: 'false',
     RAZORPAY_KEY_ID: FAKE_KEY_ID,
     RAZORPAY_KEY_SECRET: FAKE_KEY_SECRET,
     RAZORPAY_WEBHOOK_SECRET: FAKE_WEBHOOK_SECRET,

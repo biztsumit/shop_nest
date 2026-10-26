@@ -21,6 +21,7 @@ describe('validateEnv', () => {
       EMAIL_FROM_NAME: 'Shop',
       EMAIL_REDIRECT_TO: undefined,
       JOBS_ENABLED: true,
+      JOB_SCHEDULES_ENABLED: true,
       ORDER_PAYMENT_MINUTES: 30,
       RAZORPAY_API_URL: 'https://api.razorpay.com',
       LOG_LEVEL: 'info',

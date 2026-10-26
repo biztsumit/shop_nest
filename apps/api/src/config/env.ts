@@ -47,6 +47,9 @@ const envSchema = z
     // Run the job WORKERS in this process. Jobs can always be queued; with several API servers
     // (or a separate worker process) you can choose which ones do the work.
     JOBS_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
+    // Scheduled jobs (expire unpaid orders, reconcile payments, clean up). The e2e tests turn
+    // them off and call the same functions directly, at moments they choose.
+    JOB_SCHEDULES_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
 
     // ---------- Orders ----------
     // How long an unpaid order holds its stock before it expires and the stock goes back on sale
