@@ -61,11 +61,22 @@ model Product {
   category    Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   variants    ProductVariant[]
   images      ProductImage[]
+  // A SUMMARY of the variants, kept up to date by a database trigger (see the migration
+  // *_catalog_listing): the lowest variant price and the total stock. Stored here so the
+  // product list can filter and sort by them in one simple, indexed query.
+  // Never written by the app: the trigger owns them.
+  price       Int              @default(0)
+  stock       Int              @default(0)
   createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  // The storefront lists ACTIVE products of a category, newest first: this index serves exactly that
-  @@index([status, categoryId, createdAt(sort: Desc)])
+  // The product list's orders. ids are UUID v7 (time-ordered), so "newest first" is just id DESC
+  @@index([status, id(sort: Desc)])
+  @@index([status, price, id])
+  @@index([status, name, id])
+  @@index([categoryId])
+  // Search by name: a trigram index makes `name ILIKE '%tee%'` fast (needs the pg_trgm extension)
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "products_name_trgm_idx")
   @@map("products")
 }
 

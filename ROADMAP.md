@@ -9,7 +9,7 @@ Built one step at a time. Each step: working code, tests, and what's new explain
 
 ## Phase 2: Catalog
 - [x] 2.1 Prisma models + migrations: categories, products, variants (size/colour), images
-- [ ] 2.2 Public endpoints: product list with search, filters, sorting and cursor pagination; product by slug
+- [x] 2.2 Public endpoints: product list with search, filters, sorting and cursor pagination; product by slug
 - [ ] 2.3 Seed script with realistic demo data
 
 ## Phase 3: Accounts

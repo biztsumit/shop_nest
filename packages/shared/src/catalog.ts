@@ -72,3 +72,81 @@ export const createProductSchema = z.object({
 export type CreateCategory = z.infer<typeof createCategorySchema>;
 export type CreateVariant = z.infer<typeof createVariantSchema>;
 export type CreateProduct = z.infer<typeof createProductSchema>;
+
+// ---------- What the public catalog endpoints return ----------
+
+export const categorySchema = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  slug: z.string(),
+  parentId: z.uuid().nullable(),
+  productCount: z.number().int(),   // ACTIVE products directly in this category
+});
+
+const imageSchema = z.object({ url: z.string(), alt: z.string() });
+
+// One card in a product list
+export const productSummarySchema = z.object({
+  id: z.uuid(),
+  slug: z.string(),
+  name: z.string(),
+  category: z.object({ id: z.uuid(), name: z.string(), slug: z.string() }).nullable(),
+  price: z.number().int(),                    // paise: the cheapest variant
+  compareAtPrice: z.number().int().nullable(), // the cheapest variant's "was" price, if on sale
+  inStock: z.boolean(),
+  variantCount: z.number().int(),
+  image: imageSchema.nullable(),              // the main picture
+});
+
+export const productVariantSchema = z.object({
+  id: z.uuid(),
+  sku: z.string().nullable(),
+  options: z.record(z.string(), z.string()),
+  price: z.number().int(),
+  compareAtPrice: z.number().int().nullable(),
+  stock: z.number().int(),
+});
+
+// The product page
+export const productDetailSchema = productSummarySchema.omit({ image: true }).extend({
+  description: z.string(),
+  images: z.array(imageSchema),
+  variants: z.array(productVariantSchema),
+});
+
+// A page of results, and the cursor to ask for the next one (null = this was the last page)
+export const pageSchema = <T extends z.ZodType>(item: T) =>
+  z.object({ data: z.array(item), nextCursor: z.string().nullable() });
+
+export type Category = z.infer<typeof categorySchema>;
+export type ProductSummary = z.infer<typeof productSummarySchema>;
+export type ProductVariant = z.infer<typeof productVariantSchema>;
+export type ProductDetail = z.infer<typeof productDetailSchema>;
+export type Page<T> = { data: T[]; nextCursor: string | null };
+
+// ---------- GET /api/products query string ----------
+
+export const productSortSchema = z.enum(["newest", "price_asc", "price_desc", "name_asc"]);
+export type ProductSort = z.infer<typeof productSortSchema>;
+
+// Everything in a query string is text: z.coerce turns "49900" into 49900
+const optionalPaise = z.coerce.number().int("must be a whole number of paise").min(0).optional();
+
+export const productListQuerySchema = z
+  .object({
+    search: z.string().trim().max(100).optional().transform((s) => s || undefined),
+    category: slugSchema.optional(),                  // includes its sub-categories
+    minPrice: optionalPaise,
+    maxPrice: optionalPaise,
+    // NOT z.coerce.boolean(): that turns the text "false" into true
+    inStock: z.enum(["true", "false"]).transform((v) => v === "true").optional(),
+    sort: productSortSchema.default("newest"),
+    limit: z.coerce.number().int().min(1).max(48).default(24),
+    cursor: z.string().max(300).optional(),           // from the previous page's nextCursor
+  })
+  .refine((q) => q.minPrice === undefined || q.maxPrice === undefined || q.minPrice <= q.maxPrice, {
+    message: "can't be more than maxPrice",
+    path: ["minPrice"],
+  });
+
+export type ProductListQuery = z.infer<typeof productListQuerySchema>;

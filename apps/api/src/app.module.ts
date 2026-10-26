@@ -4,6 +4,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { loggingModule } from './common/logging.js';
 import { validateEnv, type Env } from './config/env.js';
+import { CatalogModule } from './catalog/catalog.module.js';
 import { HealthModule } from './health/health.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
@@ -29,6 +30,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     }),
     PrismaModule,
     HealthModule,
+    CatalogModule,
   ],
   providers: [
     // A GUARD decides whether a request may continue at all. APP_GUARD makes this one apply to
