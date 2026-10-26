@@ -55,3 +55,13 @@ export type Login = z.infer<typeof loginSchema>;
 export type Role = z.infer<typeof roleSchema>;
 export type User = z.infer<typeof userSchema>;
 export type AuthResponse = z.infer<typeof authResponseSchema>;
+
+// ---------- Admin: managing users ----------
+
+// A user as admins see them: also when they joined
+export const adminUserSchema = userSchema.extend({ createdAt: z.string() });   // ISO date-time
+
+export const changeRoleSchema = z.object({ role: roleSchema });
+
+export type AdminUser = z.infer<typeof adminUserSchema>;
+export type ChangeRole = z.infer<typeof changeRoleSchema>;

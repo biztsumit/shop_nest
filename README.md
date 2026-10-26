@@ -84,6 +84,12 @@ Every endpoint follows the same rules (set up in `apps/api/src/setup-app.ts`):
 The web app keeps the access token in memory only, and calls `refresh` when it expires or the
 page reloads. A refresh token used twice (a copy) ends that whole login.
 
+**Admins.** Nobody can sign up as an admin. Make the first one on the server, after they've
+signed up: `npm run make-admin -w @shop/api -- their@email.com`. Admins then manage roles with
+`GET /api/admin/users` and `PATCH /api/admin/users/:id/role`. Admin routes (`@Auth('ADMIN')`)
+check the role in the database on every request, so a demotion takes effect immediately, and
+the shop can never lose its last admin.
+
 ### Client IPs in production
 
 Rate limits and logs need each visitor's real IP. Requests reach the API through the Next.js

@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { CatalogModule } from './catalog/catalog.module.js';
 import { HealthModule } from './health/health.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { UsersModule } from './users/users.module.js';
 
 // The root module: the app is the tree of modules imported from here
 @Module({
@@ -33,6 +34,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     HealthModule,
     CatalogModule,
     AuthModule,
+    UsersModule,
   ],
   providers: [
     // A GUARD decides whether a request may continue at all. APP_GUARD makes this one apply to

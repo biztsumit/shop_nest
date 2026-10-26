@@ -4,7 +4,7 @@ import { Throttle } from '@nestjs/throttler';
 import { loginSchema, registerSchema, type AuthResponse, type Login, type Register, type User } from '@shop/shared';
 import type { Request, Response } from 'express';
 import type { Env } from '../config/env.js';
-import { AccessTokenGuard } from './access-token.guard.js';
+import { Auth } from './auth.decorator.js';
 import type { AuthUser } from './auth-user.js';
 import { AuthService, type Session } from './auth.service.js';
 import { CurrentUser } from './current-user.decorator.js';
@@ -85,7 +85,7 @@ export class AuthController {
   // Needs the access token, so a stolen-and-replayed cookie alone can't trigger it.
   @Post('logout-all')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @UseGuards(AccessTokenGuard)
+  @Auth()
   async logoutAll(@CurrentUser() user: AuthUser, @Res({ passthrough: true }) res: Response): Promise<void> {
     await this.auth.logoutEverywhere(user.id);
     clearRefreshCookie(res, this.secureCookies);
@@ -93,7 +93,7 @@ export class AuthController {
 
   // GET /api/auth/me  (Authorization: Bearer <access token>)
   @Get('me')
-  @UseGuards(AccessTokenGuard)
+  @Auth()
   me(@CurrentUser() user: AuthUser): Promise<User> {
     return this.auth.me(user.id);
   }

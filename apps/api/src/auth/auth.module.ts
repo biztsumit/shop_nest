@@ -7,6 +7,7 @@ import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { PasswordService } from './password.service.js';
 import { RefreshTokensService } from './refresh-tokens.service.js';
+import { RolesGuard } from './roles.guard.js';
 import { TrustedOriginGuard } from './trusted-origin.guard.js';
 
 @Module({
@@ -24,8 +25,8 @@ import { TrustedOriginGuard } from './trusted-origin.guard.js';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, PasswordService, RefreshTokensService, AccessTokenGuard, TrustedOriginGuard],
-  // Other modules protect their routes with the guard, so it (and the JWT service it needs) is shared
-  exports: [AccessTokenGuard, JwtModule],
+  providers: [AuthService, PasswordService, RefreshTokensService, AccessTokenGuard, RolesGuard, TrustedOriginGuard],
+  // Other modules protect their routes with these guards, so they (and the JWT service) are shared
+  exports: [AccessTokenGuard, RolesGuard, JwtModule],
 })
 export class AuthModule {}
