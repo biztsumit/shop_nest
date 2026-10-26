@@ -1,26 +1,111 @@
 @import "tailwindcss";
 
+/* ---------- Design tokens ----------
+   Every colour has a NAME by its job (surface, muted text, brand...), defined once, here.
+   Components say "bg-surface text-muted", never "bg-white text-zinc-500", so the whole look
+   changes by editing this file, and dark mode comes for free.
+
+   light-dark(A, B): A when the page's color-scheme is light, B when it's dark. The theme
+   switch (components/theme-switch.tsx) only changes `color-scheme`:
+     - no data-theme      → follow the operating system ("light dark")
+     - data-theme="light" → always light
+     - data-theme="dark"  → always dark
+   Dark values are chosen for a dark background (softer text, lighter brand text, stronger
+   shadows), not an automatic inversion. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light dark;   /* also styles native inputs, scrollbars and date pickers */
+
+  --bg: light-dark(#f7f7fa, #0d0d12);            /* page background */
+  --surface: light-dark(#ffffff, #16161d);       /* cards, header, inputs */
+  --subtle: light-dark(#f1f1f5, #1f1f28);        /* hover rows, image placeholders, skeletons */
+  --line: light-dark(#e4e4ea, #2a2a35);          /* borders and dividers */
+  --line-strong: light-dark(#cdcdd8, #3b3b49);   /* input borders */
+
+  --fg: light-dark(#16161d, #ececf2);            /* main text */
+  --muted: light-dark(#5b5b6b, #a5a5b4);         /* secondary text (≥ 4.5:1 on surface in both) */
+  --faint: light-dark(#8b8b9a, #6f6f82);         /* placeholders, decoration only */
+
+  --brand: #4f46e5;                              /* buttons, active states; white text: 6.3:1 */
+  --brand-hover: light-dark(#4338ca, #5b53f0);
+  --brand-fg: #ffffff;                           /* text ON the brand colour */
+  --brand-soft: light-dark(#eef0ff, #1d1b45);    /* tinted backgrounds */
+  --brand-text: light-dark(#4338ca, #a5b0ff);    /* brand-coloured text and links */
+
+  --success: light-dark(#15803d, #4ade80);  --success-soft: light-dark(#ecfdf3, #0f2a1b);
+  --warning: light-dark(#b45309, #fbbf24);  --warning-soft: light-dark(#fff8eb, #2b2110);
+  --danger: light-dark(#c81e1e, #f87171);   --danger-soft: light-dark(#fef2f2, #2d1416);
+  --info: light-dark(#0369a1, #7dd3fc);     --info-soft: light-dark(#eef8ff, #0c2533);
+
+  --chart: light-dark(#2a78d6, #3987e5);          /* dashboard series */
+  --chart-track: light-dark(#cde2fb, #184f95);
+  --star: light-dark(#f59e0b, #fbbf24);           /* rating stars (the number is always shown too) */
+
+  --shadow-edge: light-dark(hsl(240 20% 20% / 0.06), hsl(0 0% 0% / 0.3));
+  --shadow-depth: light-dark(hsl(240 20% 20% / 0.08), hsl(0 0% 0% / 0.45));
 }
 
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+
+/* Tell Tailwind about the tokens: "bg-surface", "text-muted", "border-line", "bg-brand/10"... */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-subtle: var(--subtle);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-fg: var(--brand-fg);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-text: var(--brand-text);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-chart: var(--chart);
+  --color-chart-track: var(--chart-track);
+  --color-star: var(--star);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Soft, layered shadows: a tight one for the edge + a wide faint one for depth */
+  --shadow-card: 0 1px 2px var(--shadow-edge), 0 4px 16px -4px var(--shadow-depth);
+  --shadow-pop: 0 2px 6px var(--shadow-edge), 0 16px 40px -8px var(--shadow-depth);
+
+  --animate-toast-in: toast-in 0.2s ease-out;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* One consistent, clearly visible keyboard focus ring everywhere (mouse clicks don't show it) */
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* People who turn on "reduce motion" in their OS get no animations or smooth movement */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

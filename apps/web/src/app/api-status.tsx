@@ -30,15 +30,15 @@ export async function ApiStatus() {
     : [["API", "Unreachable: is it running on port 4000?", false]];
 
   return (
-    <section className="rounded-2xl border border-zinc-200 p-5 dark:border-zinc-800" aria-label="System status">
+    <section className="rounded-2xl border border-line bg-surface p-5 shadow-card" aria-label="System status">
       <h2 className="mb-3 font-medium">System status</h2>
       <dl className="flex flex-col gap-2 text-sm">
         {rows.map(([label, value, good]) => (
           <div key={label} className="flex items-center justify-between gap-4">
-            <dt className="text-zinc-600 dark:text-zinc-400">{label}</dt>
+            <dt className="text-muted">{label}</dt>
             <dd className="flex items-center gap-2 font-medium">
               {/* The word says the state; the dot is only a visual extra */}
-              <span className={`size-2 rounded-full ${good ? "bg-green-600" : "bg-red-600"}`} aria-hidden />
+              <span className={`size-2 rounded-full ${good ? "bg-success" : "bg-danger"}`} aria-hidden />
               {value}
             </dd>
           </div>
