@@ -21,7 +21,22 @@ export class CatalogService {
         _count: { select: { products: { where: { status: 'ACTIVE' } } } },
       },
     });
-    return categories.map(({ _count, ...category }) => ({ ...category, productCount: _count.products }));
+
+    // Each category's count includes everything BELOW it, like the product filter does:
+    // "Clothing (6)", not "Clothing (0)" when all its products sit in T-shirts and Hoodies.
+    // Categories are few, so this is done here: each one's own count is added to every ancestor.
+    const parentOf = new Map(categories.map((c) => [c.id, c.parentId]));
+    const totals = new Map(categories.map((c) => [c.id, 0]));
+    for (const c of categories) {
+      // Walk up the parents. The Set guards against a loop in the data (A → B → A), which would never end.
+      const seen = new Set<string>();
+      for (let id: string | null | undefined = c.id; id && !seen.has(id); id = parentOf.get(id)) {
+        seen.add(id);
+        totals.set(id, (totals.get(id) ?? 0) + c._count.products);
+      }
+    }
+
+    return categories.map(({ _count, ...category }) => ({ ...category, productCount: totals.get(category.id) ?? 0 }));
   }
 
   async listProducts(query: ProductListQuery): Promise<Page<ProductSummary>> {

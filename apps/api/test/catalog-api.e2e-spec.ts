@@ -211,18 +211,20 @@ describe('Public catalog (e2e)', () => {
     });
   });
 
-  it('categories: with how many ACTIVE products each has', async () => {
+  it('categories: how many ACTIVE products each has, counting everything below it', async () => {
     const clothing = await make.category('clothing');
-    await make.category('t-shirts', clothing.id);
-    await make.product('tee', { categoryId: clothing.id });
-    await make.product('draft-tee', { categoryId: clothing.id, status: 'DRAFT' });
+    const tees = await make.category('t-shirts', clothing.id);
+    const graphic = await make.category('graphic-tees', tees.id);
+    await make.category('socks', clothing.id);
+    await make.product('jacket', { categoryId: clothing.id });
+    await make.product('plain-tee', { categoryId: tees.id });
+    await make.product('logo-tee', { categoryId: graphic.id });
+    await make.product('draft-tee', { categoryId: tees.id, status: 'DRAFT' });   // not counted
 
     const res = await http().get('/api/categories').expect(200);
-    const categories = categorySchema.array().parse(res.body);
-    expect(categories.map((c) => [c.slug, c.productCount, c.parentId === clothing.id])).toEqual([
-      ['clothing', 1, false],
-      ['t-shirts', 0, true],
-    ]);
+    const counts = Object.fromEntries(categorySchema.array().parse(res.body).map((c) => [c.slug, c.productCount]));
+    // The same numbers the product filter gives: ?category=clothing lists 3 products
+    expect(counts).toEqual({ clothing: 3, 't-shirts': 2, 'graphic-tees': 1, socks: 0 });
   });
 
   it('public responses may be cached for a minute', async () => {

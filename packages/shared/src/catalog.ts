@@ -80,7 +80,7 @@ export const categorySchema = z.object({
   name: z.string(),
   slug: z.string(),
   parentId: z.uuid().nullable(),
-  productCount: z.number().int(),   // ACTIVE products directly in this category
+  productCount: z.number().int(),   // ACTIVE products in this category and all categories below it
 });
 
 const imageSchema = z.object({ url: z.string(), alt: z.string() });

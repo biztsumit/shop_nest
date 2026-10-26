@@ -19,8 +19,12 @@ Needs Node.js 24+ and a local PostgreSQL.
 npm install                          # installs all three packages at once
 cp apps/api/.env.example apps/api/.env   # then fill in DATABASE_URL
 cp apps/web/.env.example apps/web/.env
-cd apps/api && npx prisma generate   # builds the typed database client
+cd apps/api && npx prisma migrate deploy   # creates the tables
+cd ../.. && npm run db:seed -w @shop/api      # demo shop: 8 categories, 23 products
 ```
+
+The seed can be run again at any time: it updates the demo products instead of duplicating
+them, leaves your own products alone, and refuses to run in production.
 
 ## Everyday commands (from the repository root)
 
