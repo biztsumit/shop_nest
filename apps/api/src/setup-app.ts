@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 import { ProblemFilter } from './common/problem.filter.js';
@@ -16,6 +17,9 @@ export const setupApp = (app: NestExpressApplication): void => {
 
   // Every route lives under /api (GET /api/health), like the web app's /api/* proxy
   app.setGlobalPrefix('api');
+
+  // Reads the Cookie header into req.cookies (the login cookie: see auth/session-cookie.ts)
+  app.use(cookieParser());
 
   // Security headers on every response (no MIME sniffing, no framing, strict HTTPS...)
   app.use(helmet());

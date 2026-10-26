@@ -15,6 +15,7 @@ describe('validateEnv', () => {
       WEB_ORIGIN: 'http://localhost:4100',
       JWT_SECRET: valid.JWT_SECRET,
       ACCESS_TOKEN_MINUTES: 15,
+      REFRESH_TOKEN_DAYS: 30,
       LOG_LEVEL: 'info',
       RATE_LIMIT_PER_MINUTE: 120,
       TRUST_PROXY: 'loopback',

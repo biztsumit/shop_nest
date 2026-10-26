@@ -14,7 +14,7 @@ Built one step at a time. Each step: working code, tests, and what's new explain
 
 ## Phase 3: Accounts
 - [x] 3.1 Users: register, login, Argon2id password hashing, short-lived access token, AccessTokenGuard + @CurrentUser()
-- [ ] 3.2 Access tokens + refresh tokens in httpOnly cookies (rotation, reuse detection)
+- [x] 3.2 Refresh tokens in httpOnly cookies (rotation, reuse detection, Origin check), logout and log out everywhere
 - [ ] 3.3 Roles: @Roles('ADMIN') guard, a script to make the first admin
 - [ ] 3.4 Email verification and password reset (queued emails)
 

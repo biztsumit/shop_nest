@@ -13,8 +13,10 @@ const envSchema = z
     // Signs the login tokens: whoever knows it can make tokens for ANY user. Long and random
     // (node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"), never committed.
     JWT_SECRET: z.string().min(32, 'must be at least 32 characters (a short secret can be guessed)'),
-    // How long an access token works. Short: a stolen one is soon useless (3.2 adds refresh)
+    // How long an access token works. Short: a stolen one is soon useless
     ACCESS_TOKEN_MINUTES: z.coerce.number().int().min(1).max(60).default(15),
+    // How long you stay logged in without visiting. Every refresh starts the count again.
+    REFRESH_TOKEN_DAYS: z.coerce.number().int().min(1).max(90).default(30),
     // How much the API logs. Left out: "info", or "silent" while testing
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional(),
     // Requests per minute from one client (by IP address) before it gets 429 Too Many Requests

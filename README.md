@@ -72,6 +72,18 @@ Every endpoint follows the same rules (set up in `apps/api/src/setup-app.ts`):
 - **Logs**: one JSON line per request (pino), colourful in development.
 - **Security headers** (Helmet) and **rate limiting** per IP address (`RATE_LIMIT_PER_MINUTE`).
 
+### Accounts and sessions
+
+| | |
+|---|---|
+| `POST /api/auth/register`, `POST /api/auth/login` | the user + a 15-minute **access token**, and a **refresh token** in an httpOnly cookie |
+| `GET /api/auth/me` | needs `Authorization: Bearer <access token>` |
+| `POST /api/auth/refresh` | the cookie → a new access token and a new cookie (each refresh token works once) |
+| `POST /api/auth/logout`, `POST /api/auth/logout-all` | end this login, or every login of the user |
+
+The web app keeps the access token in memory only, and calls `refresh` when it expires or the
+page reloads. A refresh token used twice (a copy) ends that whole login.
+
 ### Client IPs in production
 
 Rate limits and logs need each visitor's real IP. Requests reach the API through the Next.js
