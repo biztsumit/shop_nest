@@ -25,7 +25,7 @@ Built one step at a time. Each step: working code, tests, and what's new explain
 
 ## Phase 5: Payments
 - [x] 5.1 Razorpay: create payment, verify signature
-- [ ] 5.2 Webhooks and reconciliation; refunds
+- [x] 5.2 Webhooks and reconciliation; refunds
 - [ ] 5.3 Background jobs (expire unpaid orders, send emails)
 
 ## Phase 6: Storefront (Next.js)

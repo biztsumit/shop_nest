@@ -3,13 +3,23 @@ import { ConfigService } from '@nestjs/config';
 import type { Order, StartPayment, VerifyPayment } from '@shop/shared';
 import type { Env } from '../config/env.js';
 import { EmailQueue } from '../email/email-queue.js';
-import { orderConfirmedMessage, orderRefundedMessage } from '../email/templates.js';
+import { orderConfirmedMessage } from '../email/templates.js';
 import { Prisma, type Payment as PaymentRow } from '../generated/prisma/client.js';
 import { OrdersService, toOrder } from '../orders/orders.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RazorpayClient, type RazorpayPayment } from './razorpay.client.js';
+import { RefundsService } from './refunds.service.js';
 
 type Outcome = 'already-settled' | 'paid' | 'paid-late' | 'refund';
+
+// The parts of a Razorpay webhook event we read
+type RazorpayEvent = {
+  event: string;
+  payload: {
+    payment?: { entity: { id: string; order_id: string } };
+    refund?: { entity: { id: string } };
+  };
+};
 
 @Injectable()
 export class PaymentsService {
@@ -19,9 +29,69 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
     private readonly razorpay: RazorpayClient,
     private readonly orders: OrdersService,
+    private readonly refunds: RefundsService,
     private readonly emails: EmailQueue,
     private readonly config: ConfigService<Env, true>,
   ) {}
+
+  // WEBHOOK: Razorpay tells us about payments itself, server to server. This is what records a
+  // payment when the shopper closed the tab before the browser could call verify.
+  // Events can arrive late, twice, or out of order; settle() is idempotent, and processed
+  // event ids are remembered so repeats are skipped.
+  async handleWebhook(eventId: string, rawBody: Buffer, signature: string): Promise<void> {
+    if (!this.razorpay.isValidWebhookSignature(rawBody, signature)) {
+      this.logger.warn({ eventId }, 'Webhook with an invalid signature');
+      throw new BadRequestException('Invalid signature');
+    }
+    const event = JSON.parse(rawBody.toString('utf8')) as RazorpayEvent;
+    const seen = await this.prisma.webhookEvent.findUnique({ where: { id: eventId } });
+    if (seen?.processedAt) return;
+    await this.prisma.webhookEvent.createMany({ data: [{ id: eventId, type: event.event.slice(0, 60) }], skipDuplicates: true });
+
+    const payment = event.payload.payment?.entity;
+    const refund = event.payload.refund?.entity;
+    if (['payment.authorized', 'payment.captured', 'payment.failed', 'order.paid'].includes(event.event) && payment) {
+      const ours = await this.prisma.payment.findUnique({ where: { providerOrderId: payment.order_id } });
+      // Not ours (another app on the same Razorpay account): acknowledge and move on
+      if (ours) await this.settle(ours, payment.id);
+    } else if ((event.event === 'refund.processed' || event.event === 'refund.failed') && refund) {
+      await this.refunds.applyRemoteStatus(refund.id, event.event === 'refund.processed' ? 'processed' : 'failed');
+    }
+    // Only now is it "done". If anything above threw, the API answers 500 and Razorpay sends
+    // the event again later.
+    await this.prisma.webhookEvent.update({ where: { id: eventId }, data: { processedAt: new Date() } });
+  }
+
+  // RECONCILIATION, the safety net under both the browser and the webhook: for payments still
+  // not settled after a few minutes, ask Razorpay directly whether any attempt succeeded.
+  // Run every few minutes by a background job (step 5.3). Returns how many it settled.
+  async reconcile(now = new Date()): Promise<number> {
+    const stale = await this.prisma.payment.findMany({
+      where: {
+        status: { in: ['CREATED', 'FAILED'] },
+        // Older than 2 minutes (give the browser and webhook a chance), younger than 2 days
+        createdAt: { lt: new Date(now.getTime() - 2 * 60_000), gt: new Date(now.getTime() - 48 * 3_600_000) },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 100,
+    });
+    let settled = 0;
+    for (const payment of stale) {
+      try {
+        const attempts = await this.razorpay.paymentsOfOrder(payment.providerOrderId);
+        const success = attempts.find((p) => p.status === 'captured' || p.status === 'authorized');
+        if (success) {
+          await this.settle(payment, success.id);
+          settled++;
+        }
+      } catch (err) {
+        // One bad payment mustn't stop the rest; it's tried again next run
+        this.logger.warn({ err, paymentId: payment.id }, 'Could not reconcile a payment');
+      }
+    }
+    if (settled > 0) this.logger.log({ settled }, 'Payments reconciled');
+    return settled;
+  }
 
   // Step 1: the shopper clicks "Pay". A Razorpay order is created once per order and reused for
   // every attempt (a failed card, then UPI...).
@@ -132,20 +202,18 @@ export class PaymentsService {
     });
     const order = toOrder(row);
     if (outcome === 'refund') {
-      await this.refundLatePayment(payment, remote.id, order, row.user);
+      // Through the normal refund path, so it's recorded like any other refund
+      this.logger.warn({ orderId: order.id }, 'Payment arrived after the order expired and the stock is gone: refunding');
+      await this.refunds.refund(
+        order.number,
+        { reason: 'Payment arrived after the order expired; items sold out', restock: false },
+        null,
+        'Your payment arrived after the order had expired, and the items have since sold out. Sorry!',
+      );
       return;
     }
     this.logger.log({ orderId: order.id, number: order.number, late: outcome === 'paid-late' }, 'Order paid');
     const link = `${this.config.get('WEB_ORIGIN', { infer: true })}/account/orders/${order.number}`;
     await this.emails.enqueue(orderConfirmedMessage(row.user.email, row.user.name, order, link));
-  }
-
-  private async refundLatePayment(payment: PaymentRow, providerPaymentId: string, order: Order, user: { email: string; name: string }): Promise<void> {
-    this.logger.warn({ orderId: order.id }, 'Payment arrived after the order expired and the stock is gone: refunding');
-    await this.razorpay.refund(providerPaymentId, payment.amount, { reason: 'order expired before payment', orderNumber: order.number });
-    await this.prisma.payment.update({ where: { id: payment.id }, data: { status: 'REFUNDED', refundedAmount: payment.amount } });
-    await this.emails.enqueue(
-      orderRefundedMessage(user.email, user.name, order, payment.amount, 'Your payment arrived after the order had expired, and the items have since sold out. Sorry!'),
-    );
   }
 }

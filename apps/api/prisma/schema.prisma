@@ -438,7 +438,44 @@ model Payment {
   capturedAt        DateTime?     @map("captured_at") @db.Timestamptz(3)
   createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  refunds           Refund[]
 
   @@index([status, createdAt])
   @@map("payments")
+}
+
+enum RefundStatus {
+  PENDING // asked Razorpay; not confirmed yet (or the call is in progress)
+  PROCESSED // the money is on its way back to the shopper
+  FAILED
+
+  @@map("refund_status")
+}
+
+model Refund {
+  id               String       @id @default(uuid(7)) @db.Uuid
+  paymentId        String       @map("payment_id") @db.Uuid
+  payment          Payment      @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  providerRefundId String?      @unique @map("provider_refund_id") @db.VarChar(64) // "rfnd_..."
+  amount           Int // paise
+  status           RefundStatus @default(PENDING)
+  reason           String       @db.VarChar(200)
+  // Which admin did it (null = the shop itself, e.g. a payment that arrived too late)
+  createdById      String?      @map("created_by_id") @db.Uuid
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([paymentId])
+  @@map("refunds")
+}
+
+// Every webhook event Razorpay sent, by its event id. Razorpay may deliver the same event more
+// than once (and retries until we answer 2xx): this table lets us skip what's already done.
+model WebhookEvent {
+  id          String    @id @db.VarChar(64) // X-Razorpay-Event-Id
+  type        String    @db.VarChar(60) // "payment.captured"
+  receivedAt  DateTime  @default(now()) @map("received_at") @db.Timestamptz(3)
+  processedAt DateTime? @map("processed_at") @db.Timestamptz(3) // null = failed, Razorpay will retry
+
+  @@map("webhook_events")
 }

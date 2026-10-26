@@ -159,6 +159,19 @@ otherwise it's refunded automatically. Without `RAZORPAY_KEY_ID`/`RAZORPAY_KEY_S
 endpoints answer 503. The e2e tests use a **fake Razorpay server** (`test/support/fake-razorpay.ts`,
 port 4999), never the real one.
 
+**Webhook.** In the Razorpay Dashboard (Settings → Webhooks), add
+`https://<your API host>/api/webhooks/razorpay` with the events `payment.captured`,
+`payment.failed`, `order.paid`, `refund.processed` and `refund.failed`, and put its secret in
+`RAZORPAY_WEBHOOK_SECRET`. The signature is checked over the raw request body; each event id is
+processed once. This records payments even when the shopper closes the tab before the browser
+reports back. As a last safety net, a reconciliation job asks Razorpay about payments still
+unsettled after 2 minutes.
+
+**Refunds** (admins): `GET/POST /api/admin/orders/:number/refunds` with `{ amount?, reason,
+restock? }`. Leaving out `amount` refunds everything not yet refunded. The amount is reserved in
+the database (under a row lock) before Razorpay is asked, and released if Razorpay refuses, so
+two clicks can never refund twice.
+
 **Wishlist**: `GET /api/wishlist`, `GET /api/wishlist/ids`, `PUT/DELETE /api/wishlist/:productId`.
 
 **Reviews**: `GET /api/products/:slug/reviews` (public), and `GET/PUT/DELETE

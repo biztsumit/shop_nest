@@ -9,7 +9,9 @@ import { setupApp } from './setup-app.js';
 async function bootstrap(): Promise<void> {
   // bufferLogs: hold Nest's startup messages until pino takes over (in setupApp), so even
   // those come out as structured log lines
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
+  // rawBody: also keep each request's body as raw bytes (req.rawBody), for checking webhook
+  // signatures: they're computed over the exact bytes sent, which re-serialised JSON wouldn't match
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true, rawBody: true });
   setupApp(app);
 
   const port = app.get<ConfigService<Env, true>>(ConfigService).get('PORT', { infer: true });

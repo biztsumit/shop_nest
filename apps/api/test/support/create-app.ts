@@ -11,7 +11,7 @@ export const createTestApp = async (): Promise<NestExpressApplication> => {
     controllers: [ConventionsTestController],
   }).compile();
 
-  const app = moduleRef.createNestApplication<NestExpressApplication>({ bufferLogs: true });
+  const app = moduleRef.createNestApplication<NestExpressApplication>({ bufferLogs: true, rawBody: true });
   setupApp(app);
   await app.init();
   return app;

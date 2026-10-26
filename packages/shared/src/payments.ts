@@ -20,3 +20,27 @@ export const verifyPaymentSchema = z.object({
 
 export type StartPayment = z.infer<typeof startPaymentSchema>;
 export type VerifyPayment = z.infer<typeof verifyPaymentSchema>;
+
+// ---------- Refunds (admin) ----------
+
+// POST /api/admin/orders/:number/refunds
+export const createRefundSchema = z.object({
+  // Paise. Left out = everything not yet refunded
+  amount: z.number().int().min(100, "must be at least ₹1 (100 paise)").optional(),
+  reason: z.string().trim().min(1, "is required").max(200),
+  // Put the items back on sale (returned goods). Only with a full refund.
+  restock: z.boolean().default(false),
+});
+
+export const refundStatusSchema = z.enum(["PENDING", "PROCESSED", "FAILED"]);
+
+export const refundSchema = z.object({
+  id: z.uuid(),
+  amount: z.number().int(),
+  status: refundStatusSchema,
+  reason: z.string(),
+  createdAt: z.string(),
+});
+
+export type CreateRefund = z.infer<typeof createRefundSchema>;
+export type Refund = z.infer<typeof refundSchema>;
