@@ -237,6 +237,25 @@ export class OrdersService {
     }
   }
 
+  // The opposite, for an order paid AFTER it expired: take its stock again, but only if ALL of
+  // it is still there. The rows are LOCKED first (FOR UPDATE) and checked together, so it's
+  // all-or-nothing without throwing (the caller's transaction continues either way).
+  async retake(tx: Prisma.TransactionClient, orderId: string): Promise<boolean> {
+    const items = await tx.orderItem.findMany({ where: { orderId }, orderBy: { variantId: 'asc' } });
+    if (items.some((i) => i.variantId === null)) return false;   // a variant was deleted since
+    const rows = await tx.$queryRaw<Array<{ id: string; stock: number; status: string }>>`
+      SELECT v.id::text, v.stock, p.status::text FROM product_variants v JOIN products p ON p.id = v.product_id
+      WHERE v.id = ANY(${items.map((i) => i.variantId!)}::uuid[])
+      ORDER BY v.id
+      FOR UPDATE OF v`;
+    const available = new Map(rows.map((r) => [r.id, r.status === 'ACTIVE' ? r.stock : 0]));
+    if (items.some((i) => (available.get(i.variantId!) ?? 0) < i.quantity)) return false;
+    for (const item of items) {
+      await tx.productVariant.update({ where: { id: item.variantId! }, data: { stock: { decrement: item.quantity } } });
+    }
+    return true;
+  }
+
   private findByKey(userId: string, idempotencyKey: string) {
     return this.prisma.order.findUnique({ where: { userId_idempotencyKey: { userId, idempotencyKey } }, include: ORDER_INCLUDE });
   }

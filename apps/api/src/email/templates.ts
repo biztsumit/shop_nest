@@ -1,3 +1,4 @@
+import { formatPrice } from '@shop/shared';
 import type { EmailMessage } from './email.service.js';
 
 // The emails, as plain functions: data in, subject + HTML + plain text out.
@@ -40,4 +41,54 @@ export const passwordChangedMessage = (to: string, name: string): EmailMessage =
   subject: 'Your password was changed',
   html: layout(`Hi ${name},`, '<p>Your password was just changed, and every device was logged out. If this wasn\'t you, reset your password now and contact us.</p>'),
   text: `Hi ${name},\n\nYour password was just changed, and every device was logged out. If this wasn't you, reset your password now and contact us.\n`,
+});
+
+// ---------- Orders ----------
+
+type OrderForEmail = {
+  number: string;
+  total: number;
+  items: Array<{ productName: string; options: Record<string, string>; quantity: number; lineTotal: number }>;
+};
+
+const itemRows = (order: OrderForEmail): string =>
+  order.items
+    .map((i) => {
+      const options = Object.values(i.options).join(' / ');
+      return `<tr><td style="padding:6px 0">${escape(i.productName)}${options ? ` <span style="color:#5b5b6b">(${escape(options)})</span>` : ''} × ${i.quantity}</td><td style="text-align:right">${formatPrice(i.lineTotal)}</td></tr>`;
+    })
+    .join('');
+
+const itemLines = (order: OrderForEmail): string =>
+  order.items.map((i) => `- ${i.productName} × ${i.quantity}: ${formatPrice(i.lineTotal)}`).join('\n');
+
+export const orderConfirmedMessage = (to: string, name: string, order: OrderForEmail, link: string): EmailMessage => ({
+  to,
+  subject: `Order ${order.number} confirmed`,
+  html: layout(
+    `Thank you, ${name}!`,
+    `<p>We've received your payment for order <strong>${escape(order.number)}</strong> and we're getting it ready.</p>
+     <table style="width:100%;border-collapse:collapse;font-size:14px">${itemRows(order)}
+       <tr><td style="padding-top:12px;font-weight:600">Total paid</td><td style="padding-top:12px;text-align:right;font-weight:600">${formatPrice(order.total)}</td></tr>
+     </table>${button(link, 'View your order')}`,
+  ),
+  text: `Thank you, ${name}!\n\nWe've received your payment for order ${order.number}.\n\n${itemLines(order)}\nTotal paid: ${formatPrice(order.total)}\n\nView your order: ${link}\n`,
+});
+
+export const orderShippedMessage = (to: string, name: string, order: OrderForEmail, link: string): EmailMessage => ({
+  to,
+  subject: `Order ${order.number} is on its way`,
+  html: layout(`Good news, ${name}!`, `<p>Order <strong>${escape(order.number)}</strong> has shipped.</p>${button(link, 'Track your order')}`),
+  text: `Good news, ${name}!\n\nOrder ${order.number} has shipped.\nTrack it: ${link}\n`,
+});
+
+export const orderRefundedMessage = (to: string, name: string, order: OrderForEmail, amount: number, reason: string): EmailMessage => ({
+  to,
+  subject: `Refund for order ${order.number}`,
+  html: layout(
+    `Hi ${name},`,
+    `<p>We've refunded <strong>${formatPrice(amount)}</strong> for order <strong>${escape(order.number)}</strong>. ${escape(reason)}</p>
+     <p>Refunds usually reach your account in 5–7 working days.</p>`,
+  ),
+  text: `Hi ${name},\n\nWe've refunded ${formatPrice(amount)} for order ${order.number}. ${reason}\nRefunds usually reach your account in 5-7 working days.\n`,
 });

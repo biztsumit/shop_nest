@@ -11,3 +11,4 @@ export * from "./cart.js";
 export * from "./orders.js";
 export * from "./coupons.js";
 export * from "./reviews.js";
+export * from "./payments.js";

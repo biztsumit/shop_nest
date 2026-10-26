@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { parse } from 'dotenv';
+import { FAKE_KEY_ID, FAKE_KEY_SECRET, FAKE_RAZORPAY_PORT, FAKE_WEBHOOK_SECRET } from './support/fake-razorpay.js';
 
 // The settings end-to-end tests run with.
 // - On a developer machine: apps/api/.env.test (git-ignored), which points at a SEPARATE
@@ -17,9 +18,18 @@ export const loadTestEnv = (): Record<string, string> => {
         'Create apps/api/.env.test with DATABASE_URL=.../shop_nest_test (see .env.example).',
     );
   }
-  // Tests NEVER send real email, whatever .env.test or the shell says: emails are kept in
-  // memory, where tests read them (links, tokens) and nothing leaves the machine
-  return { ...env, EMAIL_TRANSPORT: 'memory', EMAIL_REDIRECT_TO: '' };
+  // Tests NEVER send real email or touch real payments, whatever .env.test or the shell says:
+  // emails are kept in memory (where tests read their links), and payments go to the fake
+  // Razorpay server that global-setup.ts starts
+  return {
+    ...env,
+    EMAIL_TRANSPORT: 'memory',
+    EMAIL_REDIRECT_TO: '',
+    RAZORPAY_KEY_ID: FAKE_KEY_ID,
+    RAZORPAY_KEY_SECRET: FAKE_KEY_SECRET,
+    RAZORPAY_WEBHOOK_SECRET: FAKE_WEBHOOK_SECRET,
+    RAZORPAY_API_URL: `http://127.0.0.1:${FAKE_RAZORPAY_PORT}`,
+  };
 };
 
 const pickDefined = (env: NodeJS.ProcessEnv): Record<string, string> =>

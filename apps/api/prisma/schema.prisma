@@ -290,6 +290,7 @@ model Order {
   createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
   couponRedemption CouponRedemption?
+  payment          Payment?
 
   @@unique([userId, idempotencyKey])
   // "My orders", newest first
@@ -407,4 +408,37 @@ model Review {
   // The product page's list: visible reviews, newest first
   @@index([productId, hidden, id(sort: Desc)])
   @@map("reviews")
+}
+
+// ---------- Payments ----------
+
+enum PaymentStatus {
+  CREATED // a Razorpay order exists; the shopper hasn't paid yet
+  CAPTURED // the money is ours
+  FAILED // the last attempt failed (the shopper can try again)
+  REFUNDED // all of it was given back
+  PARTIALLY_REFUNDED
+
+  @@map("payment_status")
+}
+
+// One per order: the Razorpay order the shopper pays through. Razorpay allows several attempts
+// at paying one Razorpay order (a failed card, then UPI), so retries reuse this row.
+model Payment {
+  id                String        @id @default(uuid(7)) @db.Uuid
+  orderId           String        @unique @map("order_id") @db.Uuid
+  order             Order         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  providerOrderId   String        @unique @map("provider_order_id") @db.VarChar(64) // "order_N8xR..."
+  providerPaymentId String?       @unique @map("provider_payment_id") @db.VarChar(64) // "pay_N8xS..." once paid
+  amount            Int // paise: always the order's total
+  currency          String        @default("INR") @db.Char(3)
+  status            PaymentStatus @default(CREATED)
+  method            String?       @db.VarChar(30) // upi, card, netbanking...
+  refundedAmount    Int           @default(0) @map("refunded_amount")
+  capturedAt        DateTime?     @map("captured_at") @db.Timestamptz(3)
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([status, createdAt])
+  @@map("payments")
 }

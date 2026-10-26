@@ -144,6 +144,21 @@ as a 422 on the `couponCode` field with the reason. Redeeming locks the coupon r
 usage limit can't be overrun by orders placed at the same moment. Cancelled and expired
 orders give their coupon use back. The seed adds `WELCOME10`, `FLAT200` and `FESTIVE15`.
 
+### Payments (Razorpay)
+
+1. `POST /api/orders/:number/payment` creates (once) a Razorpay order and returns what
+   Razorpay Checkout needs (`keyId`, `razorpayOrderId`, `amount`, prefill).
+2. The browser opens Checkout; on success Checkout hands it `razorpay_payment_id` and a
+   **signature** (HMAC-SHA256 of `order_id|payment_id` with our secret, which the browser can't fake).
+3. `POST /api/orders/:number/payment/verify` checks the signature, then asks Razorpay for the
+   payment itself (captured? right amount?) before marking the order `PAID` and emailing a
+   confirmation. Sending the same receipt twice is harmless.
+
+A payment that arrives after its order expired takes the stock again if it's still there;
+otherwise it's refunded automatically. Without `RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET`, payment
+endpoints answer 503. The e2e tests use a **fake Razorpay server** (`test/support/fake-razorpay.ts`,
+port 4999), never the real one.
+
 **Wishlist**: `GET /api/wishlist`, `GET /api/wishlist/ids`, `PUT/DELETE /api/wishlist/:productId`.
 
 **Reviews**: `GET /api/products/:slug/reviews` (public), and `GET/PUT/DELETE

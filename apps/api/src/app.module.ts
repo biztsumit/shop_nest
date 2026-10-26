@@ -12,6 +12,7 @@ import { EmailModule } from './email/email.module.js';
 import { HealthModule } from './health/health.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
 import { OrdersModule } from './orders/orders.module.js';
+import { PaymentsModule } from './payments/payments.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ReviewsModule } from './reviews/reviews.module.js';
 import { UsersModule } from './users/users.module.js';
@@ -49,6 +50,7 @@ import { WishlistModule } from './wishlist/wishlist.module.js';
     OrdersModule,
     WishlistModule,
     ReviewsModule,
+    PaymentsModule,
   ],
   providers: [
     // A GUARD decides whether a request may continue at all. APP_GUARD makes this one apply to

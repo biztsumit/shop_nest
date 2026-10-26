@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+// "KEY=" (an empty line in .env) means "not set"
+const emptyToUndefined = (value: unknown) => (value === '' ? undefined : value);
+
 // Every setting the API reads from the environment, checked ONCE at startup.
 // A missing or malformed value stops the app immediately with a clear message, instead of
 // failing later in some request (the same idea as src/config/env.ts in node-learning).
@@ -48,10 +51,24 @@ const envSchema = z
     // ---------- Orders ----------
     // How long an unpaid order holds its stock before it expires and the stock goes back on sale
     ORDER_PAYMENT_MINUTES: z.coerce.number().int().min(5).max(24 * 60).default(30),
+
+    // ---------- Payments (Razorpay) ----------
+    // From the Razorpay Dashboard → Account & Settings → API Keys. Test keys (rzp_test_...) take
+    // pretend payments. Without keys the shop still works, but orders can't be paid online.
+    RAZORPAY_KEY_ID: z.preprocess(emptyToUndefined, z.string().regex(/^rzp_(test|live)_\w+$/, 'must look like rzp_test_... or rzp_live_...').optional()),
+    RAZORPAY_KEY_SECRET: z.preprocess(emptyToUndefined, z.string().min(8).optional()),
+    // Set when creating the webhook in the Dashboard (Settings → Webhooks); signs every event
+    RAZORPAY_WEBHOOK_SECRET: z.preprocess(emptyToUndefined, z.string().min(8).optional()),
+    // Only changed by tests, which point it at a fake Razorpay server
+    RAZORPAY_API_URL: z.url().default('https://api.razorpay.com'),
   })
   .superRefine((env, ctx) => {
     if (env.EMAIL_TRANSPORT === 'brevo' && !env.BREVO_API_KEY) {
       ctx.addIssue({ code: 'custom', path: ['BREVO_API_KEY'], message: 'is required when EMAIL_TRANSPORT=brevo' });
+    }
+    // Both keys or neither: one without the other is always a mistake
+    if (Boolean(env.RAZORPAY_KEY_ID) !== Boolean(env.RAZORPAY_KEY_SECRET)) {
+      ctx.addIssue({ code: 'custom', path: ['RAZORPAY_KEY_SECRET'], message: 'RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET go together: set both or neither' });
     }
   })
   .transform((env) => ({ ...env, LOG_LEVEL: env.LOG_LEVEL ?? (env.NODE_ENV === 'test' ? 'silent' : 'info') }));
