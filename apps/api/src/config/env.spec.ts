@@ -2,7 +2,10 @@ import { validateEnv } from './env.js';
 
 // A UNIT test: one function on its own, no database, no HTTP. Fast enough to run on every save.
 describe('validateEnv', () => {
-  const valid = { DATABASE_URL: 'postgresql://user:pass@localhost:5432/shop_nest' };
+  const valid = {
+    DATABASE_URL: 'postgresql://user:pass@localhost:5432/shop_nest',
+    JWT_SECRET: 'a-test-secret-that-is-long-enough-1234',
+  };
 
   it('fills in defaults for optional settings', () => {
     expect(validateEnv(valid)).toEqual({
@@ -10,10 +13,16 @@ describe('validateEnv', () => {
       PORT: 4000,
       DATABASE_URL: valid.DATABASE_URL,
       WEB_ORIGIN: 'http://localhost:4100',
+      JWT_SECRET: valid.JWT_SECRET,
+      ACCESS_TOKEN_MINUTES: 15,
       LOG_LEVEL: 'info',
       RATE_LIMIT_PER_MINUTE: 120,
       TRUST_PROXY: 'loopback',
     });
+  });
+
+  it('refuses a short JWT secret, which could be guessed', () => {
+    expect(() => validateEnv({ ...valid, JWT_SECRET: 'secret' })).toThrow(/JWT_SECRET: must be at least 32 characters/);
   });
 
   it('turns PORT text from the environment into a number', () => {
@@ -35,7 +44,7 @@ describe('validateEnv', () => {
   });
 
   it('refuses a database URL that is not PostgreSQL', () => {
-    expect(() => validateEnv({ DATABASE_URL: 'mysql://localhost/shop' })).toThrow(/postgresql/);
+    expect(() => validateEnv({ ...valid, DATABASE_URL: 'mysql://localhost/shop' })).toThrow(/postgresql/);
   });
 
   it('lists every problem at once, not just the first', () => {

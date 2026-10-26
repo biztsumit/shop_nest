@@ -10,6 +10,11 @@ const envSchema = z
     DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/, error: 'must be a postgresql:// URL' }),
     // The web app's address: the only browser origin allowed to call this API (CORS)
     WEB_ORIGIN: z.url().default('http://localhost:4100'),
+    // Signs the login tokens: whoever knows it can make tokens for ANY user. Long and random
+    // (node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"), never committed.
+    JWT_SECRET: z.string().min(32, 'must be at least 32 characters (a short secret can be guessed)'),
+    // How long an access token works. Short: a stolen one is soon useless (3.2 adds refresh)
+    ACCESS_TOKEN_MINUTES: z.coerce.number().int().min(1).max(60).default(15),
     // How much the API logs. Left out: "info", or "silent" while testing
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional(),
     // Requests per minute from one client (by IP address) before it gets 429 Too Many Requests

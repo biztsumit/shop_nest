@@ -116,3 +116,28 @@ model ProductImage {
   @@index([productId, position])
   @@map("product_images")
 }
+
+// ---------- Accounts ----------
+
+enum Role {
+  CUSTOMER
+  ADMIN
+
+  @@map("role")
+}
+
+model User {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  // Always stored lower-case (a CHECK constraint makes sure): "Riya@Mail.com" and
+  // "riya@mail.com" are the same person, so they can't make two accounts
+  email        String   @unique @db.VarChar(254)
+  name         String   @db.VarChar(100)
+  // An Argon2id hash ("$argon2id$v=19$m=19456,t=2,p=1$..."), never the password itself.
+  // It never leaves the API: responses map users to a public shape without it.
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  role         Role     @default(CUSTOMER)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("users")
+}

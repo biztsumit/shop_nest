@@ -13,9 +13,9 @@ Built one step at a time. Each step: working code, tests, and what's new explain
 - [x] 2.3 Seed script with realistic demo data
 
 ## Phase 3: Accounts
-- [ ] 3.1 Users: register, login, password hashing
+- [x] 3.1 Users: register, login, Argon2id password hashing, short-lived access token, AccessTokenGuard + @CurrentUser()
 - [ ] 3.2 Access tokens + refresh tokens in httpOnly cookies (rotation, reuse detection)
-- [ ] 3.3 Guards and decorators: @CurrentUser(), @Roles('admin')
+- [ ] 3.3 Roles: @Roles('ADMIN') guard, a script to make the first admin
 - [ ] 3.4 Email verification and password reset (queued emails)
 
 ## Phase 4: Cart and checkout
