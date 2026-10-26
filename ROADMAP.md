@@ -19,7 +19,7 @@ Built one step at a time. Each step: working code, tests, and what's new explain
 - [x] 3.4 Email verification and password reset (queued emails)
 
 ## Phase 4: Cart and checkout
-- [ ] 4.1 Cart and addresses
+- [x] 4.1 Cart and addresses
 - [ ] 4.2 Orders in a database transaction: stock reservation, idempotency keys
 - [ ] 4.3 Coupons and wishlist
 

@@ -109,6 +109,19 @@ signed up: `npm run make-admin -w @shop/api -- their@email.com`. Admins then man
 check the role in the database on every request, so a demotion takes effect immediately, and
 the shop can never lose its last admin.
 
+### Cart and addresses
+
+Both need a login. The cart lives on the server (`/api/cart`); before logging in, the web app
+keeps one in the browser and sends it to `POST /api/cart/merge` afterwards.
+
+| | |
+|---|---|
+| `GET /api/cart` | lines with **today's** price and stock; a `problem` per line if it can't be bought as is |
+| `POST /api/cart/items` | `{ variantId, quantity }`: adds to what's there (max 10 of one item, 50 lines) |
+| `PUT /api/cart/items/:variantId` | `{ quantity }`: sets it; 0 removes |
+| `DELETE /api/cart/items/:variantId`, `DELETE /api/cart` | remove one line, or everything |
+| `GET/POST /api/addresses`, `GET/PATCH/DELETE /api/addresses/:id` | up to 10 Indian addresses, one default |
+
 ### Client IPs in production
 
 Rate limits and logs need each visitor's real IP. Requests reach the API through the Next.js

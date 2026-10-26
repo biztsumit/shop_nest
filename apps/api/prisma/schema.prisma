@@ -83,22 +83,23 @@ model Product {
 // What is actually bought: one size/colour combination of a product, with its own price and stock.
 // A product without options has exactly one variant with options {}.
 model ProductVariant {
-  id             String   @id @default(uuid(7)) @db.Uuid
-  productId      String   @map("product_id") @db.Uuid
-  product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  sku            String?  @unique @db.VarChar(64) // the shop's own stock code, optional
+  id             String     @id @default(uuid(7)) @db.Uuid
+  productId      String     @map("product_id") @db.Uuid
+  product        Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku            String?    @unique @db.VarChar(64) // the shop's own stock code, optional
   // {"size": "M", "colour": "Black"}
-  options        Json     @default("{}")
+  options        Json       @default("{}")
   // The same options as text in a fixed order ("colour=Black;size=M"), so the database can
   // refuse two variants of one product with identical options (JSON can't be UNIQUE in Prisma)
-  optionsKey     String   @default("") @map("options_key") @db.VarChar(255)
+  optionsKey     String     @default("") @map("options_key") @db.VarChar(255)
   price          Int // paise
   // The "was" price for sales (strikethrough ₹999 → ₹699). Must be higher than price.
-  compareAtPrice Int?     @map("compare_at_price")
-  stock          Int      @default(0)
-  position       Int      @default(0) // display order on the product page
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  compareAtPrice Int?       @map("compare_at_price")
+  stock          Int        @default(0)
+  position       Int        @default(0) // display order on the product page
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  cartItems      CartItem[]
 
   @@unique([productId, optionsKey])
   @@map("product_variants")
@@ -142,6 +143,8 @@ model User {
   refreshTokens   RefreshToken[]
   createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  cartItems       CartItem[]
+  addresses       Address[]
 
   @@map("users")
 }
@@ -187,4 +190,49 @@ model EmailToken {
 
   @@index([userId, purpose])
   @@map("email_tokens")
+}
+
+// ---------- Cart and addresses ----------
+
+// A logged-in user's cart: one row per variant, with how many. There's no "carts" table: a
+// user has exactly one cart, so their rows ARE the cart. Prices are NOT stored here: the cart
+// always shows today's price, read from the variant.
+model CartItem {
+  id        String         @id @default(uuid(7)) @db.Uuid
+  userId    String         @map("user_id") @db.Uuid
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // A variant deleted by an admin simply disappears from carts
+  variantId String         @map("variant_id") @db.Uuid
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  quantity  Int // 1 to 10 (CHECK cart_items_quantity_range)
+  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  // One row per variant: adding the same thing again increases the quantity
+  @@unique([userId, variantId])
+  @@index([variantId])
+  @@map("cart_items")
+}
+
+// Where orders are delivered. An order COPIES the address it was sent to, so editing or
+// deleting an address later never changes a past order.
+model Address {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName  String   @map("full_name") @db.VarChar(100)
+  phone     String   @db.VarChar(10) // 10 digits, no +91 (CHECK addresses_phone_format)
+  line1     String   @db.VarChar(200)
+  line2     String   @default("") @db.VarChar(200)
+  city      String   @db.VarChar(100)
+  state     String   @db.VarChar(60)
+  pincode   String   @db.Char(6) // CHECK addresses_pincode_format
+  // At most ONE default per user: a partial unique index in the migration
+  // (UNIQUE (user_id) WHERE is_default), which Prisma can't express
+  isDefault Boolean  @default(false) @map("is_default")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([userId])
+  @@map("addresses")
 }

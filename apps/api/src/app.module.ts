@@ -4,7 +4,9 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { loggingModule } from './common/logging.js';
 import { validateEnv, type Env } from './config/env.js';
+import { AddressesModule } from './addresses/addresses.module.js';
 import { AuthModule } from './auth/auth.module.js';
+import { CartModule } from './cart/cart.module.js';
 import { CatalogModule } from './catalog/catalog.module.js';
 import { EmailModule } from './email/email.module.js';
 import { HealthModule } from './health/health.module.js';
@@ -39,6 +41,8 @@ import { UsersModule } from './users/users.module.js';
     CatalogModule,
     AuthModule,
     UsersModule,
+    CartModule,
+    AddressesModule,
   ],
   providers: [
     // A GUARD decides whether a request may continue at all. APP_GUARD makes this one apply to
