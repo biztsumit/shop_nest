@@ -22,12 +22,13 @@ services:
     dockerContext: .
     dockerfilePath: ./apps/api/Dockerfile
     healthCheckPath: /api/health
-    # Apply new migrations, then start. Safe with one instance (the free plan runs one);
-    # `migrate deploy` only applies what's missing and changes nothing when up to date.
-    dockerCommand: sh -c "npx prisma migrate deploy && node --import ./dist/instrument.js dist/main.js"
     envVars:
       - key: PORT
         value: "4000"
+      # Apply new migrations when the container starts (apps/api/scripts/start.sh). Safe with
+      # one instance (the free plan runs one): it only applies what's missing.
+      - key: MIGRATE_ON_START
+        value: "true"
       # Neon's DIRECT connection string (not the "-pooler" one): the job queue LISTENs for new
       # jobs and Prisma's migrations need a real session, which a transaction pooler can't give
       - key: DATABASE_URL

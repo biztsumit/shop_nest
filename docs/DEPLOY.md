@@ -48,7 +48,7 @@ Copy secrets **by hand into the dashboards**, never into a file in either projec
    - `RAZORPAY_WEBHOOK_SECRET`: leave it for step 7
    - `SENTRY_DSN`: optional, empty = off
 4. **Apply**. Render builds both images. The API applies the migrations when it starts
-   (`npx prisma migrate deploy`), then serves.
+   (`MIGRATE_ON_START=true` → `apps/api/scripts/start.sh`), then serves.
 5. **Addresses**: if Render gave the services different addresses than the ones in
    `render.yaml` (it adds a suffix when a name is taken), set `WEB_ORIGIN` on the API to the
    web's address and `API_URL` on the web to the API's address, and redeploy the web service
@@ -84,13 +84,14 @@ needs its address).
 | Language | Docker | Docker |
 | Region | Singapore | Singapore |
 | Root directory | (empty: the repository root) | (empty) |
-| Dockerfile path | `apps/api/Dockerfile` | `apps/web/Dockerfile` |
+| Dockerfile path | `./apps/api/Dockerfile` | `./apps/web/Dockerfile` |
+| Docker build context directory | `.` | `.` |
 | Instance type | Free | Free |
-| Docker command (Advanced) | `sh -c "npx prisma migrate deploy && node --import ./dist/instrument.js dist/main.js"` | (empty) |
+| Docker command (Advanced) | (empty: the image knows how to start) | (empty) |
 | Health check path (Advanced) | `/api/health` | `/robots.txt` |
 
 Environment variables:
-- **shop-nest-api**: `PORT`=`4000`, `DATABASE_URL` (Neon, direct), `JWT_SECRET` (Generate),
+- **shop-nest-api**: `PORT`=`4000`, `MIGRATE_ON_START`=`true`, `DATABASE_URL` (Neon, direct), `JWT_SECRET` (Generate),
   `METRICS_TOKEN` (Generate), `WEB_ORIGIN` (the web's address), `TRUST_PROXY`=`2`,
   `EMAIL_TRANSPORT`=`brevo`, `BREVO_API_KEY`, `EMAIL_FROM_ADDRESS`, `RAZORPAY_KEY_ID`,
   `RAZORPAY_KEY_SECRET` (and `RAZORPAY_WEBHOOK_SECRET` after step 7)

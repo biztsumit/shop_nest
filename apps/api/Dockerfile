@@ -52,6 +52,7 @@ COPY apps/api/prisma/migrations apps/api/prisma/migrations
 # The compiled API (its dist/ includes the generated Prisma client) and the shared package
 COPY --from=build /app/apps/api/dist apps/api/dist
 COPY --from=build /app/packages/shared/dist packages/shared/dist
+COPY apps/api/scripts/start.sh apps/api/scripts/start.sh
 
 # Not root: if someone ever broke into the app, they'd have a powerless user, not the container
 USER node
@@ -62,5 +63,6 @@ EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "fetch('http://localhost:4000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
-# --import loads error tracking/tracing first (it does nothing without SENTRY_DSN)
-CMD ["node", "--import", "./dist/instrument.js", "dist/main.js"]
+# scripts/start.sh: migrations first if MIGRATE_ON_START=true, then the API (with --import,
+# which loads error tracking/tracing first; it does nothing without SENTRY_DSN)
+CMD ["sh", "scripts/start.sh"]
