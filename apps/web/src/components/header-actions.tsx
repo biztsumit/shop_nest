@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, LogOut, Package, ShoppingBag, User } from "lucide-react";
+import { ChevronDown, LayoutDashboard, LogOut, Package, ShoppingBag, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -75,6 +75,7 @@ function AccountMenu() {
           <p className="truncate px-3 py-2 text-xs text-muted">{user.email}</p>
           <Link role="menuitem" href="/account/orders" onClick={() => setOpen(false)} className={item}><Package className="size-4" aria-hidden /> My orders</Link>
           <Link role="menuitem" href="/account" onClick={() => setOpen(false)} className={item}><User className="size-4" aria-hidden /> Account</Link>
+          {user.role === "ADMIN" && <Link role="menuitem" href="/admin" onClick={() => setOpen(false)} className={item}><LayoutDashboard className="size-4" aria-hidden /> Admin</Link>}
           <button
             role="menuitem"
             type="button"

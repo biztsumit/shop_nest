@@ -12,3 +12,4 @@ export * from "./orders.js";
 export * from "./coupons.js";
 export * from "./reviews.js";
 export * from "./payments.js";
+export * from "./admin.js";
