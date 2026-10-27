@@ -38,7 +38,8 @@ Copy secrets **by hand into the dashboards**, never into a file in either projec
    Docker images).
 2. **Neon**: create a project named `shop-nest`, region **AWS Asia Pacific (Singapore)**,
    **Postgres 18** (the default; the app needs 18). Copy the **direct** connection string:
-   in "Connect", turn **Connection pooling off** (the host has no `-pooler` in it). The job queue
+   in "Connect", turn **Connection pooling off** (the host has no `-pooler` in it). Add
+   `&connect_timeout=30` at the end: a free database that was asleep needs a few seconds to wake. The job queue
    listens for new jobs and Prisma's migrations need a real session, which a pooler can't give.
 3. **Render**: **New → Blueprint**, pick the repository. It shows `shop-nest-api` and
    `shop-nest-web`. Fill in the secrets it asks for (`sync: false` entries):
