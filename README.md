@@ -247,8 +247,8 @@ runs as an unprivileged user and contains no secrets (`.dockerignore` keeps ever
 Settings come from the environment at run time. The web image needs `API_URL` at **build**
 time too, because Next.js writes the `/api/*` rewrite into the build.
 
-**Going live:** [`render.yaml`](render.yaml) describes production on Render (private API, public
-storefront, managed PostgreSQL, migrations before each release). It isn't deployed yet; the
+**Going live:** [`render.yaml`](render.yaml) describes a free-tier setup on Render with the
+database on Neon (node-learning keeps its own database). It isn't deployed yet; the
 steps are in [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## CI

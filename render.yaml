@@ -1,47 +1,48 @@
 # Render "Blueprint": the production setup, described as code. NOT deployed yet: see
 # docs/DEPLOY.md for the steps (and the secrets to fill in on Render's dashboard).
 #
-#   browser ──https──▶ shop-nest-web (public) ──/api/*──▶ shop-nest-api (private) ──▶ PostgreSQL
+# FREE-TIER layout, with the database on Neon (Render allows one free database per workspace,
+# and node-learning already uses it):
 #
-# Only the storefront is on the internet. The API is a PRIVATE service: reachable only from the
-# web service over Render's internal network (Razorpay's webhook comes in through the web's
-# /api/* proxy too). Region: Singapore, the closest to India.
-
-databases:
-  - name: shop-nest-db
-    databaseName: shop_nest
-    user: shop
-    region: singapore
-    plan: basic-256mb
-    postgresMajorVersion: "18"
+#   browser ──https──▶ shop-nest-web ──/api/*──▶ shop-nest-api ──▶ Neon PostgreSQL 18
+#
+# Free-tier trade-offs (docs/DEPLOY.md "Upgrading later" shows the paid layout):
+# - both services sleep after ~15 minutes without visits; the first visit then takes ~1 minute
+# - the API is a public web service (free services can't RECEIVE private-network requests);
+#   browsers still never call it directly: the API only accepts the shop's own origin
+# - migrations run when the API container starts (pre-deploy commands are paid-only)
+# Region: Singapore, the closest to India (create the Neon project in Singapore too).
 
 services:
-  - type: pserv
+  - type: web
     name: shop-nest-api
     runtime: docker
     region: singapore
-    plan: starter
+    plan: free
     dockerContext: .
     dockerfilePath: ./apps/api/Dockerfile
-    # Before each release goes live: apply new migrations (from the same image). If this
-    # fails, the release is stopped and the previous version keeps running.
-    preDeployCommand: npx prisma migrate deploy
+    healthCheckPath: /api/health
+    # Apply new migrations, then start. Safe with one instance (the free plan runs one);
+    # `migrate deploy` only applies what's missing and changes nothing when up to date.
+    dockerCommand: sh -c "npx prisma migrate deploy && node --import ./dist/instrument.js dist/main.js"
     envVars:
       - key: PORT
         value: "4000"
+      # Neon's DIRECT connection string (not the "-pooler" one): the job queue LISTENs for new
+      # jobs and Prisma's migrations need a real session, which a transaction pooler can't give
       - key: DATABASE_URL
-        fromDatabase:
-          name: shop-nest-db
-          property: connectionString
-      # Generated once by Render: long, random, never in Git
+        sync: false
+      # Generated once by Render: long, random, never in Git, never shared with node-learning
       - key: JWT_SECRET
         generateValue: true
       # The shop's public address (change when you add your own domain)
       - key: WEB_ORIGIN
         value: https://shop-nest-web.onrender.com
-      # Requests arrive from the web service over Render's private network
+      # Hops in front of the API that may report the visitor's IP: Render's proxy, and the web
+      # service in between. Check after deploying that the request log shows real visitor IPs
+      # (docs/DEPLOY.md, step 6).
       - key: TRUST_PROXY
-        value: uniquelocal
+        value: "2"
       - key: EMAIL_TRANSPORT
         value: brevo
       # sync: false = a secret you type into the dashboard; it never appears in this file
@@ -49,10 +50,12 @@ services:
         sync: false
       - key: EMAIL_FROM_ADDRESS
         sync: false
+      # The SAME Razorpay account and keys as node-learning is fine...
       - key: RAZORPAY_KEY_ID
         sync: false
       - key: RAZORPAY_KEY_SECRET
         sync: false
+      # ...but this is the secret of shop-nest's OWN webhook (each webhook has its own)
       - key: RAZORPAY_WEBHOOK_SECRET
         sync: false
       # Observability: the metrics token is generated; Sentry is optional (leave empty = off)
@@ -65,17 +68,14 @@ services:
     name: shop-nest-web
     runtime: docker
     region: singapore
-    plan: starter
+    plan: free
     dockerContext: .
     dockerfilePath: ./apps/web/Dockerfile
     healthCheckPath: /robots.txt
     envVars:
       - key: PORT
         value: "4100"
-      # "shop-nest-api:4000" on the private network. Render passes environment variables to
-      # Docker builds as build arguments too, which the web image needs (see its Dockerfile).
+      # The API's public address. Render passes environment variables to Docker builds as build
+      # arguments too, which the web image needs (it bakes the /api/* rewrite into the build).
       - key: API_URL
-        fromService:
-          type: pserv
-          name: shop-nest-api
-          property: hostport
+        value: https://shop-nest-api.onrender.com
