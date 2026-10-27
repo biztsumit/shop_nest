@@ -10,7 +10,9 @@ import { api, refreshSession, setAccessToken } from "@/lib/client-api";
 
 type AuthState =
   | { status: "loading"; user: null }
-  | { status: "guest"; user: null }
+  // loggedOut: became a guest by logging out just now (pages needing a login then go home,
+  // instead of asking them to log in again)
+  | { status: "guest"; user: null; loggedOut?: boolean }
   | { status: "signed-in"; user: User };
 
 type AuthContextValue = AuthState & {
@@ -56,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     await api("/auth/logout", { method: "POST" }).catch(() => undefined);
     setAccessToken(null);
-    setState({ status: "guest", user: null });
+    setState({ status: "guest", user: null, loggedOut: true });
   }, []);
 
   const refreshUser = useCallback(async () => {

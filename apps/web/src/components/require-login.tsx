@@ -18,13 +18,15 @@ export function RequireLogin({ children }: { children: ReactNode }) {
 }
 
 function Gate({ children }: { children: ReactNode }) {
-  const { status } = useAuth();
+  const auth = useAuth();
+  const { status } = auth;
+  const loggedOut = auth.status === "guest" && auth.loggedOut === true;
   const router = useRouter();
   const path = usePathname();
 
   useEffect(() => {
-    if (status === "guest") router.replace(`/login?next=${encodeURIComponent(path)}`);
-  }, [status, path, router]);
+    if (status === "guest") router.replace(loggedOut ? "/" : `/login?next=${encodeURIComponent(path)}`);
+  }, [status, loggedOut, path, router]);
 
   return status === "signed-in" ? children : <Placeholder />;
 }

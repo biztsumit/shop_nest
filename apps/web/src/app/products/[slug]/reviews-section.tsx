@@ -1,10 +1,12 @@
 import type { Page, RatingSummary, Review } from "@shop/shared";
-import { BadgeCheck } from "lucide-react";
 import { Stars } from "@/components/ui/stars";
-import { formatDate, plural } from "@/lib/format";
+import { plural } from "@/lib/format";
+import { ReviewsList } from "./review-client";
 
-// The stars summary (with a bar per rating) and the newest reviews
-export function ReviewsSection({ rating, firstPage }: { slug: string; rating: RatingSummary; firstPage: Page<Review> }) {
+// The stars summary (with a bar per rating), the shopper's own review, and the newest reviews.
+// The first page is rendered on the server (and cached for a few minutes); later pages and the
+// shopper's own review come from the browser, so they're always fresh.
+export function ReviewsSection({ slug, rating, firstPage }: { slug: string; rating: RatingSummary; firstPage: Page<Review> }) {
   return (
     <section id="reviews" className="grid scroll-mt-24 gap-8 border-t border-line pt-10 md:grid-cols-[18rem_1fr]">
       <div className="flex flex-col gap-4">
@@ -37,29 +39,8 @@ export function ReviewsSection({ rating, firstPage }: { slug: string; rating: Ra
       </div>
 
       <div className="flex flex-col gap-6">
-        {firstPage.data.length > 0 && (
-          <ul className="flex flex-col divide-y divide-line">
-            {firstPage.data.map((review) => <ReviewItem key={review.id} review={review} />)}
-          </ul>
-        )}
+        <ReviewsList slug={slug} firstPage={firstPage} />
       </div>
     </section>
-  );
-}
-
-export function ReviewItem({ review }: { review: Review }) {
-  return (
-    <li className="flex flex-col gap-2 py-5 first:pt-0">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <Stars rating={review.rating} />
-        <h3 className="font-medium">{review.title}</h3>
-      </div>
-      {review.body && <p className="leading-relaxed whitespace-pre-line text-muted">{review.body}</p>}
-      <p className="flex flex-wrap items-center gap-x-3 text-sm text-muted">
-        <span>{review.authorName}</span>
-        <span>{formatDate(review.createdAt)}</span>
-        {review.verifiedPurchase && <span className="flex items-center gap-1 text-success"><BadgeCheck className="size-4" aria-hidden /> Verified purchase</span>}
-      </p>
-    </li>
   );
 }

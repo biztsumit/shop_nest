@@ -4,11 +4,12 @@ import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Badge } from "./ui/badge";
+import { WishlistButton } from "./wishlist-button";
 import { Price } from "./ui/price";
 
-// A Server Component, prerendered with the page. `action` is an optional overlay (the wishlist
-// heart): a button may not sit INSIDE a link, so it's placed over the photo, next to the link.
-export function ProductCard({ product, priority = false, action }: { product: ProductSummary; priority?: boolean; action?: ReactNode }) {
+// A Server Component, prerendered with the page; only the heart runs in the browser.
+// A button may not sit INSIDE a link, so the heart is placed over the photo, next to the link.
+export function ProductCard({ product, priority = false }: { product: ProductSummary; priority?: boolean }) {
   return (
     <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-line bg-surface transition duration-200 hover:-translate-y-0.5 hover:shadow-pop">
       <Link href={`/products/${product.slug}`} className="flex flex-1 flex-col">
@@ -42,7 +43,7 @@ export function ProductCard({ product, priority = false, action }: { product: Pr
           </p>
         </div>
       </Link>
-      {action && <div className="absolute top-2 right-2">{action}</div>}
+      <WishlistButton productId={product.id} name={product.name} className="absolute top-2 right-2" />
     </div>
   );
 }

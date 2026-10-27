@@ -7,6 +7,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { themeScript } from "@/components/theme-switch";
 import { ToastProvider } from "@/components/ui/toast";
+import { WishlistProvider } from "@/components/wishlist-provider";
 import { site } from "@/lib/site";
 import "./globals.css";
 
@@ -47,10 +48,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <AuthProvider>
           <CartProvider>
             <ToastProvider>
-              <SiteHeader />
-              <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
-              <SiteFooter />
-              <CartDrawer />
+              <WishlistProvider>
+                <SiteHeader />
+                <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
+                <SiteFooter />
+                <CartDrawer />
+              </WishlistProvider>
             </ToastProvider>
           </CartProvider>
         </AuthProvider>

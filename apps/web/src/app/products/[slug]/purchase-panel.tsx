@@ -4,6 +4,7 @@ import type { ProductDetail } from "@shop/shared";
 import { Check, Truck } from "lucide-react";
 import { useState } from "react";
 import { Price } from "@/components/ui/price";
+import { WishlistButton } from "@/components/wishlist-button";
 import { cn } from "@/lib/cn";
 import { AddToCart } from "./add-to-cart";
 import { choose, findVariant, initialChoice, isAvailable, optionNames, valuesOf } from "./variant-options";
@@ -65,7 +66,10 @@ export function PurchasePanel({ product }: { product: ProductDetail }) {
         )}
       </p>
 
-      <AddToCart product={product} variant={variant} />
+      <div className="flex gap-3">
+        <div className="flex-1"><AddToCart product={product} variant={variant} /></div>
+        <WishlistButton productId={product.id} name={product.name} withLabel />
+      </div>
 
       <p className="flex items-center gap-2 text-sm text-muted">
         <Truck className="size-4" aria-hidden /> Free delivery across India on orders from ₹999

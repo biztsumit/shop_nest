@@ -1,12 +1,13 @@
 "use client";
 
-import { Package, User } from "lucide-react";
+import { Heart, Package, User } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
 
 const LINKS = [
   { href: "/account/orders", label: "Orders", Icon: Package },
+  { href: "/account/wishlist", label: "Wishlist", Icon: Heart },
   { href: "/account", label: "Account", Icon: User },
 ];
 

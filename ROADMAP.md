@@ -32,7 +32,7 @@ Built one step at a time. Each step: working code, tests, and what's new explain
 - [x] 6.1 Design system from day one: tokens, light/dark, UI components
 - [x] 6.2 Home, catalog with filters, product page with variant pickers
 - [x] 6.3 Cart drawer, 3-step checkout, order tracking
-- [ ] 6.4 Account area, wishlist, reviews
+- [x] 6.4 Account area, wishlist, reviews
 
 ## Phase 7: Admin
 - [ ] 7.1 Products and variants, orders, coupons
