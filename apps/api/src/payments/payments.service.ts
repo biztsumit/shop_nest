@@ -6,6 +6,7 @@ import { EmailQueue } from '../email/email-queue.js';
 import { orderConfirmedMessage } from '../email/templates.js';
 import { Prisma, type Payment as PaymentRow } from '../generated/prisma/client.js';
 import { OrdersService, toOrder } from '../orders/orders.service.js';
+import { MetricsService } from '../metrics/metrics.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RazorpayClient, type RazorpayPayment } from './razorpay.client.js';
 import { RefundsService } from './refunds.service.js';
@@ -32,6 +33,7 @@ export class PaymentsService {
     private readonly refunds: RefundsService,
     private readonly emails: EmailQueue,
     private readonly config: ConfigService<Env, true>,
+    private readonly metrics: MetricsService,
   ) {}
 
   // WEBHOOK: Razorpay tells us about payments itself, server to server. This is what records a
@@ -213,6 +215,7 @@ export class PaymentsService {
       return;
     }
     this.logger.log({ orderId: order.id, number: order.number, late: outcome === 'paid-late' }, 'Order paid');
+    this.metrics.paymentsCaptured.inc();
     const link = `${this.config.get('WEB_ORIGIN', { infer: true })}/account/orders/${order.number}`;
     await this.emails.enqueue(orderConfirmedMessage(row.user.email, row.user.name, order, link));
   }

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import type { Env } from '../config/env.js';
+import { MetricsService } from '../metrics/metrics.service.js';
 
 export type EmailMessage = { to: string; subject: string; html: string; text: string };
 
@@ -17,9 +18,24 @@ export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   readonly outbox: EmailMessage[] = [];
 
-  constructor(private readonly config: ConfigService<Env, true>) {}
+  constructor(
+    private readonly config: ConfigService<Env, true>,
+    private readonly metrics: MetricsService,
+  ) {}
 
+  // Counted either way (shop_emails_total{result="sent|failed"}): a rising "failed" line is the
+  // first sign the email provider is down or the API key was revoked
   async send(message: EmailMessage): Promise<void> {
+    try {
+      await this.deliver(message);
+      this.metrics.emails.inc({ result: 'sent' });
+    } catch (err) {
+      this.metrics.emails.inc({ result: 'failed' });
+      throw err;
+    }
+  }
+
+  private async deliver(message: EmailMessage): Promise<void> {
     // `||`, not `??`: an empty "EMAIL_REDIRECT_TO=" line means "not set", never "send to nobody".
     // (Validation turns '' into undefined, but ConfigService then falls back to the raw
     // process.env value, which is still ''.)

@@ -55,6 +55,11 @@ services:
         sync: false
       - key: RAZORPAY_WEBHOOK_SECRET
         sync: false
+      # Observability: the metrics token is generated; Sentry is optional (leave empty = off)
+      - key: METRICS_TOKEN
+        generateValue: true
+      - key: SENTRY_DSN
+        sync: false
 
   - type: web
     name: shop-nest-web

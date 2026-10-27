@@ -79,7 +79,7 @@ jobs:
         env:
           NODE_ENV: production
         run: |
-          node dist/main.js > api.log 2>&1 &
+          node --import ./dist/instrument.js dist/main.js > api.log 2>&1 &
           for i in $(seq 1 30); do
             if curl -sf http://localhost:4000/api/health; then exit 0; fi
             sleep 1

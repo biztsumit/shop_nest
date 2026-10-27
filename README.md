@@ -217,6 +217,20 @@ run the web app behind the hosting provider's load balancer (which adds the visi
 keep `TRUST_PROXY=loopback` on the API when both run on one machine. Without a load balancer,
 every visitor would look like the web server and share one rate limit.
 
+## Observability
+
+- **Logs**: one JSON line per request (pino), with a request id that is also sent back as
+  `X-Request-Id` and in every error response, so a customer's "it failed" can be found.
+- **Metrics**: `GET /api/metrics` (Prometheus format), only with `Authorization: Bearer
+  $METRICS_TOKEN` (no token configured = no endpoint). Requests and their durations by **route
+  pattern** (`/api/products/:slug`, never the raw URL), Node's own health, and business
+  counters: `shop_orders_placed_total`, `shop_payments_captured_total`, `shop_emails_total{result}`.
+- **Errors and tracing**: Sentry, on when `SENTRY_DSN` is set. `src/instrument.ts` is loaded
+  with `node --import ./dist/instrument.js` (Docker and `start:prod` do this) so it can trace
+  HTTP, Express and PostgreSQL calls; 5xx errors are reported with their request id. Personal
+  data is switched off explicitly: this Sentry SDK version collects request bodies, headers
+  and cookies **by default**.
+
 ## Docker
 
 ```bash

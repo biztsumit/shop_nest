@@ -13,6 +13,7 @@ import { EmailModule } from './email/email.module.js';
 import { HealthModule } from './health/health.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
 import { MaintenanceModule } from './maintenance/maintenance.module.js';
+import { MetricsModule } from './metrics/metrics.module.js';
 import { OrdersModule } from './orders/orders.module.js';
 import { PaymentsModule } from './payments/payments.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
@@ -41,6 +42,7 @@ import { WishlistModule } from './wishlist/wishlist.module.js';
       ],
     }),
     PrismaModule,
+    MetricsModule,
     JobsModule,
     EmailModule,
     HealthModule,

@@ -64,6 +64,15 @@ const envSchema = z
     RAZORPAY_WEBHOOK_SECRET: z.preprocess(emptyToUndefined, z.string().min(8).optional()),
     // Only changed by tests, which point it at a fake Razorpay server
     RAZORPAY_API_URL: z.url().default('https://api.razorpay.com'),
+
+    // ---------- Observability ----------
+    // GET /api/metrics (Prometheus) answers only with "Authorization: Bearer <this>". Not set:
+    // the endpoint doesn't exist (404).
+    METRICS_TOKEN: z.preprocess(emptyToUndefined, z.string().min(16, 'must be at least 16 characters').optional()),
+    // Error tracking and tracing with Sentry, read by src/instrument.ts (which starts BEFORE the
+    // app, so it reads process.env itself; listed here so a typo is caught at startup)
+    SENTRY_DSN: z.preprocess(emptyToUndefined, z.url().optional()),
+    SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
   })
   .superRefine((env, ctx) => {
     if (env.EMAIL_TRANSPORT === 'brevo' && !env.BREVO_API_KEY) {

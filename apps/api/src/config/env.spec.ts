@@ -24,6 +24,7 @@ describe('validateEnv', () => {
       JOB_SCHEDULES_ENABLED: true,
       ORDER_PAYMENT_MINUTES: 30,
       RAZORPAY_API_URL: 'https://api.razorpay.com',
+      SENTRY_TRACES_SAMPLE_RATE: 0.1,
       LOG_LEVEL: 'info',
       RATE_LIMIT_PER_MINUTE: 120,
       TRUST_PROXY: 'loopback',

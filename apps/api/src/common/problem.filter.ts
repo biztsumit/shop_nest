@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import * as Sentry from '@sentry/node';
 import type { Problem } from '@shop/shared';
 import type { Request, Response } from 'express';
 import { ValidationFailedException } from './validation.js';
@@ -47,6 +48,9 @@ export class ProblemFilter implements ExceptionFilter {
     // log the real error with its stack, but never send those details to the client.
     if (status >= 500) {
       this.logger.error({ err: exception, requestId: problem.requestId }, 'Request failed');
+      // ...and to error tracking (a no-op unless SENTRY_DSN is set: see instrument.ts), tagged
+      // with the same request id the customer can quote
+      Sentry.captureException(exception, { tags: { requestId: problem.requestId } });
     }
 
     res.status(status).type('application/problem+json').json(problem);

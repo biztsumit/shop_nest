@@ -22,6 +22,7 @@ import { Prisma, type Order as OrderRow, type OrderItem as OrderItemRow } from '
 import { CartService } from '../cart/cart.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CouponsService } from '../coupons/coupons.service.js';
+import { MetricsService } from '../metrics/metrics.service.js';
 
 type OrderWithItems = OrderRow & { items: OrderItemRow[] };
 
@@ -36,6 +37,7 @@ export class OrdersService {
     private readonly cart: CartService,
     private readonly coupons: CouponsService,
     private readonly config: ConfigService<Env, true>,
+    private readonly metrics: MetricsService,
   ) {}
 
   // What checkout would cost right now (the cart's buyable lines, a coupon, delivery)
@@ -59,6 +61,7 @@ export class OrdersService {
     try {
       const order = await this.prisma.$transaction((tx) => this.create(tx, userId, input, idempotencyKey, requestHash));
       this.logger.log({ orderId: order.id, number: order.number, total: order.total }, 'Order placed');
+      this.metrics.ordersPlaced.inc();
       return { order: toOrder(order), replayed: false };
     } catch (err) {
       // The same key arrived twice at the same moment: the second request waited at the order
