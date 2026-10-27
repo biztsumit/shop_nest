@@ -1,8 +1,9 @@
 import path from "node:path";
 import type { NextConfig } from "next";
+import { apiUrl } from "./src/lib/api-url";
 
 // Where the NestJS API runs (apps/api). Only the Next server talks to it directly.
-const API_URL = process.env.API_URL ?? "http://localhost:4000";
+const API_URL = apiUrl();
 
 // Where product photos may come from. next/image resizes photos on our server, so it only
 // accepts listed hosts: otherwise anyone could use the shop to resize any image on the web.

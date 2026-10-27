@@ -17,8 +17,9 @@ import {
   type Review,
 } from "@shop/shared";
 import { cacheLife, cacheTag } from "next/cache";
+import { apiUrl } from "./api-url";
 
-const API_URL = process.env.API_URL ?? "http://localhost:4000";
+const API_URL = apiUrl();
 
 const getJson = async <T>(path: string, schema: { parse: (value: unknown) => T }): Promise<T | null> => {
   const res = await fetch(`${API_URL}/api${path}`);

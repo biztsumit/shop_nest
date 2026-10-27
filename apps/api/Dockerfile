@@ -38,6 +38,17 @@ COPY apps/web/package.json apps/web/
 COPY packages/shared/package.json packages/shared/
 RUN npm ci --omit=dev --ignore-scripts --workspace @shop/api && npm cache clean --force
 
+# ...plus the Prisma CLI (and dotenv, which prisma.config.ts loads), so a hosting platform can
+# run `npx prisma migrate deploy` from THIS image before each release. Same versions as
+# package.json, read from it: they can't drift apart.
+RUN npm install --no-save --ignore-scripts --workspace @shop/api \
+    "prisma@$(node -p "require('./apps/api/package.json').devDependencies.prisma")" \
+    "dotenv@$(node -p "require('./apps/api/package.json').devDependencies.dotenv")" \
+  && npm cache clean --force
+COPY apps/api/prisma.config.ts apps/api/
+COPY apps/api/prisma/schema.prisma apps/api/prisma/
+COPY apps/api/prisma/migrations apps/api/prisma/migrations
+
 # The compiled API (its dist/ includes the generated Prisma client) and the shared package
 COPY --from=build /app/apps/api/dist apps/api/dist
 COPY --from=build /app/packages/shared/dist packages/shared/dist

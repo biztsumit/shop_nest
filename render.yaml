@@ -1,0 +1,76 @@
+# Render "Blueprint": the production setup, described as code. NOT deployed yet: see
+# docs/DEPLOY.md for the steps (and the secrets to fill in on Render's dashboard).
+#
+#   browser ──https──▶ shop-nest-web (public) ──/api/*──▶ shop-nest-api (private) ──▶ PostgreSQL
+#
+# Only the storefront is on the internet. The API is a PRIVATE service: reachable only from the
+# web service over Render's internal network (Razorpay's webhook comes in through the web's
+# /api/* proxy too). Region: Singapore, the closest to India.
+
+databases:
+  - name: shop-nest-db
+    databaseName: shop_nest
+    user: shop
+    region: singapore
+    plan: basic-256mb
+    postgresMajorVersion: "18"
+
+services:
+  - type: pserv
+    name: shop-nest-api
+    runtime: docker
+    region: singapore
+    plan: starter
+    dockerContext: .
+    dockerfilePath: ./apps/api/Dockerfile
+    # Before each release goes live: apply new migrations (from the same image). If this
+    # fails, the release is stopped and the previous version keeps running.
+    preDeployCommand: npx prisma migrate deploy
+    envVars:
+      - key: PORT
+        value: "4000"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: shop-nest-db
+          property: connectionString
+      # Generated once by Render: long, random, never in Git
+      - key: JWT_SECRET
+        generateValue: true
+      # The shop's public address (change when you add your own domain)
+      - key: WEB_ORIGIN
+        value: https://shop-nest-web.onrender.com
+      # Requests arrive from the web service over Render's private network
+      - key: TRUST_PROXY
+        value: uniquelocal
+      - key: EMAIL_TRANSPORT
+        value: brevo
+      # sync: false = a secret you type into the dashboard; it never appears in this file
+      - key: BREVO_API_KEY
+        sync: false
+      - key: EMAIL_FROM_ADDRESS
+        sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+
+  - type: web
+    name: shop-nest-web
+    runtime: docker
+    region: singapore
+    plan: starter
+    dockerContext: .
+    dockerfilePath: ./apps/web/Dockerfile
+    healthCheckPath: /robots.txt
+    envVars:
+      - key: PORT
+        value: "4100"
+      # "shop-nest-api:4000" on the private network. Render passes environment variables to
+      # Docker builds as build arguments too, which the web image needs (see its Dockerfile).
+      - key: API_URL
+        fromService:
+          type: pserv
+          name: shop-nest-api
+          property: hostport

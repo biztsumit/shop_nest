@@ -40,5 +40,5 @@ Built one step at a time. Each step: working code, tests, and what's new explain
 
 ## Phase 8: Production
 - [x] 8.1 Docker images and docker-compose
-- [ ] 8.2 Deployment (behind the host's load balancer, which must add X-Forwarded-For: see README "Client IPs")
+- [x] 8.2 Deployment (prepared, not deployed) (behind the host's load balancer, which must add X-Forwarded-For: see README "Client IPs")
 - [ ] 8.3 Observability: error tracking, metrics, tracing

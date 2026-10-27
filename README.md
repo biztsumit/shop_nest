@@ -233,6 +233,10 @@ runs as an unprivileged user and contains no secrets (`.dockerignore` keeps ever
 Settings come from the environment at run time. The web image needs `API_URL` at **build**
 time too, because Next.js writes the `/api/*` rewrite into the build.
 
+**Going live:** [`render.yaml`](render.yaml) describes production on Render (private API, public
+storefront, managed PostgreSQL, migrations before each release). It isn't deployed yet; the
+steps are in [docs/DEPLOY.md](docs/DEPLOY.md).
+
 ## CI
 
 `.github/workflows/ci.yml` runs on every push to `main` and every pull request, on a fresh
