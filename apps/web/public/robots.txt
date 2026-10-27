@@ -1,0 +1,6 @@
+# Search engines: index the shop, not the private pages
+User-agent: *
+Disallow: /admin
+Disallow: /account
+Disallow: /checkout
+Disallow: /api/

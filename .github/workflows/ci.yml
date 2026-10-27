@@ -85,3 +85,48 @@ jobs:
             sleep 1
           done
           echo "The API never became healthy. Its output:"; cat api.log; exit 1
+
+  # The Docker images and docker-compose.yml, checked the way someone would use them: build
+  # everything, start the whole stack, seed it, and read the catalog THROUGH the storefront.
+  docker:
+    name: Docker images and compose
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      # Throwaway values that only exist inside this CI run
+      POSTGRES_PASSWORD: ci-only-database-password
+      JWT_SECRET: ci-only-secret-for-throwaway-test-tokens-0123456789
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check the compose file
+        run: docker compose config --quiet
+
+      - name: Build the images
+        run: docker compose build
+
+      - name: Start the stack
+        run: docker compose up -d
+
+      - name: Wait until the API and the storefront answer
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:4000/api/health && curl -sf -o /dev/null http://localhost:4100/styleguide; then exit 0; fi
+            sleep 3
+          done
+          docker compose ps; docker compose logs; exit 1
+
+      - name: Seed, then read a product through the storefront's /api proxy
+        run: |
+          docker compose run --rm migrate npm run db:seed
+          curl -sf "http://localhost:4100/api/products?limit=1" | grep -q '"slug"'
+          curl -sf -o /dev/null http://localhost:4100/products
+
+      - name: Logs (on failure)
+        if: failure()
+        run: docker compose logs
+
+      - name: Stop and delete everything
+        if: always()
+        run: docker compose down -v

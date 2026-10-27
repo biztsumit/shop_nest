@@ -217,10 +217,28 @@ run the web app behind the hosting provider's load balancer (which adds the visi
 keep `TRUST_PROXY=loopback` on the API when both run on one machine. Without a load balancer,
 every visitor would look like the web server and share one rate limit.
 
+## Docker
+
+```bash
+cp .env.example .env                                   # set POSTGRES_PASSWORD and JWT_SECRET
+docker compose up --build                              # → http://localhost:4100 (API on :4000)
+docker compose run --rm migrate npm run db:seed        # optional: the demo catalog
+```
+
+`docker-compose.yml` starts PostgreSQL, runs the migrations once, then the API, then the
+storefront, each waiting for the one before. The images (`apps/api/Dockerfile`,
+`apps/web/Dockerfile`) are built from the repository root in two stages: a build stage with all
+tools, and a small run stage (production dependencies only / Next.js standalone output) that
+runs as an unprivileged user and contains no secrets (`.dockerignore` keeps every `.env` out).
+Settings come from the environment at run time. The web image needs `API_URL` at **build**
+time too, because Next.js writes the `/api/*` rewrite into the build.
+
 ## CI
 
 `.github/workflows/ci.yml` runs on every push to `main` and every pull request, on a fresh
 Linux machine with a real PostgreSQL: install → typecheck → lint → unit tests → e2e tests →
-build → start the built API and call it (smoke test). A red check means: don't merge yet.
+build → start the built API and call it (smoke test). A second job builds the Docker images,
+starts the compose stack, seeds it and reads a product through the storefront. A red check
+means: don't merge yet.
 
 The plan, step by step, is in [ROADMAP.md](ROADMAP.md).

@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 // Where the NestJS API runs (apps/api). Only the Next server talks to it directly.
@@ -14,6 +15,14 @@ const IMAGE_HOSTS = (process.env.IMAGE_HOSTS ?? "picsum.photos,fastly.picsum.pho
 const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
+
+  // Docker builds set NEXT_OUTPUT=standalone: a self-contained server folder with only the
+  // files it needs (see apps/web/Dockerfile). In a monorepo, file tracing must start at the
+  // repository root, or the shared package would be left out.
+  ...(process.env.NEXT_OUTPUT === "standalone" && {
+    output: "standalone" as const,
+    outputFileTracingRoot: path.resolve(process.cwd(), "../.."),
+  }),
 
   images: {
     remotePatterns: IMAGE_HOSTS.map((hostname) => ({ protocol: "https", hostname })),

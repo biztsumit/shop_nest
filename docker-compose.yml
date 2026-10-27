@@ -1,0 +1,84 @@
+# The whole shop on one machine: database, migrations, API and storefront.
+#
+#   cp .env.example .env          (then put a real JWT_SECRET in it)
+#   docker compose up --build     → http://localhost:4100
+#   docker compose run --rm migrate npm run db:seed        (demo catalog, optional)
+#   docker compose down           (add -v to also delete the database)
+#
+# Settings come from the environment / .env (never baked into images). Each service waits for
+# the one before it: db healthy → migrations done → API healthy → web.
+name: shop-nest
+
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: shop
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: shop_nest
+    volumes:
+      # PostgreSQL 18 images keep their data under /var/lib/postgresql/<version>
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shop -d shop_nest"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Runs the Prisma migrations once, then exits. Uses the API image's BUILD stage, which has
+  # the Prisma CLI (the final API image doesn't).
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: build
+    command: ["npx", "prisma", "migrate", "deploy"]
+    environment:
+      DATABASE_URL: postgresql://shop:${POSTGRES_PASSWORD}@db:5432/shop_nest
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://shop:${POSTGRES_PASSWORD}@db:5432/shop_nest
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env (a long random value)}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:4100}
+      # Requests arrive from the web container over Docker's private network, so trust proxies
+      # on private ("unique local") addresses to report the visitor's IP
+      TRUST_PROXY: uniquelocal
+      EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-log}
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-shop@example.com}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "4000:4000"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # The API as the web SERVER sees it: the "api" service on Docker's network
+        API_URL: http://api:4000
+    environment:
+      API_URL: http://api:4000
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "4100:4100"
+    restart: unless-stopped
+
+volumes:
+  db-data:

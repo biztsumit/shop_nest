@@ -12,7 +12,8 @@
       ],
       "env": [
         "API_URL",
-        "IMAGE_HOSTS"
+        "IMAGE_HOSTS",
+        "NEXT_OUTPUT"
       ]
     },
     "dev": {

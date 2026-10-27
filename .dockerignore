@@ -1,0 +1,19 @@
+# What `docker build` must NOT copy into images. Above all: secrets (.env files) never go in
+# an image, where anyone who can pull it could read them. Settings come from the environment
+# at run time instead (see docker-compose.yml).
+**/.env
+**/.env.*
+!**/.env.example
+
+# Rebuilt inside the image, or not needed there
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/*.tsbuildinfo
+**/coverage
+apps/api/src/generated
+apps/api/.emails
+.git
+.github
+*.log
