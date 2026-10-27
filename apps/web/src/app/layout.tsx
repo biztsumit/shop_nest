@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { AuthProvider } from "@/components/auth-provider";
+import { CartDrawer } from "@/components/cart-drawer";
+import { CartProvider } from "@/components/cart-provider";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { themeScript } from "@/components/theme-switch";
@@ -40,11 +43,17 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="flex min-h-full flex-col">
-        <ToastProvider>
-          <SiteHeader />
-          <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
-          <SiteFooter />
-        </ToastProvider>
+        {/* Order matters: the cart needs to know who is logged in; anything may show a toast */}
+        <AuthProvider>
+          <CartProvider>
+            <ToastProvider>
+              <SiteHeader />
+              <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
+              <SiteFooter />
+              <CartDrawer />
+            </ToastProvider>
+          </CartProvider>
+        </AuthProvider>
       </body>
     </html>
   );
