@@ -7,7 +7,7 @@
 // - Checked against the SAME shared schemas the API uses for admin input: invalid demo data
 //   (a sale price below the price, a bad slug...) fails here, loudly.
 // - Refuses to run in production.
-import { PrismaPg } from '@prisma/adapter-pg';
+import { pgAdapter } from '../src/prisma/adapter.js';
 import { createCategorySchema, createProductSchema, slugify, type ProductStatus } from '@shop/shared';
 import { pathToFileURL } from 'node:url';
 import { optionsKey, normaliseOptions } from '../src/catalog/variant-options.js';
@@ -267,7 +267,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     console.error('DATABASE_URL is not set (see apps/api/.env.example).');
     process.exit(1);
   }
-  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });
+  const prisma = new PrismaClient({ adapter: pgAdapter(url) });
   try {
     const database = new URL(url).pathname.slice(1);
     const counts = await seedCatalog(prisma);

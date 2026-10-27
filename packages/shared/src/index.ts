@@ -13,3 +13,4 @@ export * from "./coupons.js";
 export * from "./reviews.js";
 export * from "./payments.js";
 export * from "./admin.js";
+export * from "./reports.js";

@@ -6,7 +6,7 @@
 // only an admin can make other admins. The very first admin has to come from someone who can
 // run commands on the server: that's the proof of being allowed to.
 // After that, admins promote others through the API (PATCH /api/admin/users/:id/role).
-import { PrismaPg } from '@prisma/adapter-pg';
+import { pgAdapter } from '../src/prisma/adapter.js';
 import { emailSchema } from '@shop/shared';
 import { pathToFileURL } from 'node:url';
 import { PrismaClient } from '../src/generated/prisma/client.js';
@@ -30,7 +30,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     console.error('Usage: npm run make-admin -w @shop/api -- <email>   (DATABASE_URL comes from apps/api/.env)');
     process.exit(1);
   }
-  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });
+  const prisma = new PrismaClient({ adapter: pgAdapter(url) });
   try {
     const result = await makeAdmin(prisma, email);
     const database = new URL(url).pathname.slice(1);

@@ -167,6 +167,22 @@ processed once. This records payments even when the shopper closes the tab befor
 reports back. As a last safety net, a reconciliation job asks Razorpay about payments still
 unsettled after 2 minutes.
 
+### Admin back office (`/admin`)
+
+Admins (see "Admins" above) get an **Admin** link in the account menu: a sales dashboard,
+orders (ship, deliver, cancel, refund), products and variants, coupons and review moderation.
+The dashboard reads `GET /api/admin/reports/sales?days=7|30|90` (India-time days, compared with
+the period before) and exports `GET /api/admin/reports/orders.csv`. CSV cells that look like
+spreadsheet formulas (`=`, `+`, `-`, `@`) are made plain text, so a customer's name can't run in
+someone's Excel.
+
+For a dashboard with history while developing: `npm run db:seed-sales -w @shop/api` adds about
+75 days of demo orders (opt-in, idempotent, refuses production).
+
+**Time zones.** The database connection always uses `TimeZone=UTC` (`src/prisma/adapter.ts`):
+Prisma sends dates without an offset, so on a PostgreSQL server set to India time they were
+stored 5½ hours early. Reports group by India-time days in SQL (`AT TIME ZONE 'Asia/Kolkata'`).
+
 ### Background jobs
 
 pg-boss keeps jobs in the `pgboss` schema of the same database (no Redis). Besides queued

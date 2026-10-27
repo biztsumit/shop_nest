@@ -36,7 +36,7 @@ Built one step at a time. Each step: working code, tests, and what's new explain
 
 ## Phase 7: Admin
 - [x] 7.1 Products and variants, orders, coupons
-- [ ] 7.2 Sales dashboard and reports
+- [x] 7.2 Sales dashboard and reports
 
 ## Phase 8: Production
 - [ ] 8.1 Docker images and docker-compose

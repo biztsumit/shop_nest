@@ -23,7 +23,8 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
     "postdb:migrate": "prisma generate",
-    "make-admin": "tsx --env-file=.env scripts/make-admin.ts"
+    "make-admin": "tsx --env-file=.env scripts/make-admin.ts",
+    "db:seed-sales": "tsx --env-file=.env prisma/seed-sales.ts"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
