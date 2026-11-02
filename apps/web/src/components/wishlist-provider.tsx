@@ -9,6 +9,7 @@ import { useAuth } from "./auth-provider";
 
 type WishlistContextValue = {
   has: (productId: string) => boolean;
+  count: number;   // for the badge on the header's heart
   toggle: (productId: string) => Promise<boolean>;   // resolves with "now saved?"
 };
 
@@ -52,7 +53,7 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
     }
   }, [status, ids, router]);
 
-  const value = useMemo(() => ({ has: (id: string) => ids.has(id), toggle }), [ids, toggle]);
+  const value = useMemo(() => ({ has: (id: string) => ids.has(id), count: ids.size, toggle }), [ids, toggle]);
   return <WishlistContext value={value}>{children}</WishlistContext>;
 }
 

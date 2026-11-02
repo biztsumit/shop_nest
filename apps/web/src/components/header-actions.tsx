@@ -1,21 +1,34 @@
 "use client";
 
-import { ChevronDown, LayoutDashboard, LogOut, Package, ShoppingBag, User } from "lucide-react";
+import { ChevronDown, Heart, LayoutDashboard, LogOut, Package, ShoppingBag, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "./auth-provider";
 import { useCart } from "./cart-provider";
 import { ThemeSwitch } from "./theme-switch";
+import { useWishlist } from "./wishlist-provider";
 
-// The right side of the header: theme, account, cart
+// The right side of the header: theme, account, wishlist, cart
 export function HeaderActions() {
   return (
     <div className="flex items-center gap-1 sm:gap-2">
       <ThemeSwitch className="hidden lg:inline-flex" />
       <AccountMenu />
+      <WishlistLink />
       <CartButton />
     </div>
+  );
+}
+
+// A plain link: guests who follow it are asked to log in, then land on their wishlist
+function WishlistLink() {
+  const { count } = useWishlist();
+  return (
+    <Link href="/account/wishlist" aria-label={`Wishlist, ${count} ${count === 1 ? "item" : "items"}`} className="relative flex size-10 items-center justify-center rounded-lg hover:bg-subtle">
+      <Heart className="size-5" aria-hidden />
+      <CountBadge count={count} />
+    </Link>
   );
 }
 
@@ -25,12 +38,18 @@ function CartButton() {
   return (
     <button type="button" onClick={open} aria-label={`Cart, ${count} ${count === 1 ? "item" : "items"}`} className="relative flex size-10 items-center justify-center rounded-lg hover:bg-subtle">
       <ShoppingBag className="size-5" aria-hidden />
-      {count > 0 && (
-        <span aria-hidden className="absolute -top-0.5 -right-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1 text-xs font-semibold text-brand-fg tabular-nums">
-          {count > 99 ? "99+" : count}
-        </span>
-      )}
+      <CountBadge count={count} />
     </button>
+  );
+}
+
+// The little number on an icon (hidden from screen readers: the label already says it)
+function CountBadge({ count }: { count: number }) {
+  if (count === 0) return null;
+  return (
+    <span aria-hidden className="absolute -top-0.5 -right-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1 text-xs font-semibold text-brand-fg tabular-nums">
+      {count > 99 ? "99+" : count}
+    </span>
   );
 }
 
