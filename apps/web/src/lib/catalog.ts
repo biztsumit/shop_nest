@@ -21,8 +21,29 @@ import { apiUrl } from "./api-url";
 
 const API_URL = apiUrl();
 
+// On a host that puts idle services to sleep (Render's free plan), the API takes up to a
+// minute to wake, and its proxy answers 502/503/504 meanwhile. So keep asking, a few seconds
+// apart, for up to ~90 s: the first visitor waits longer, instead of getting an error page.
+const WAKE_STATUSES = new Set([502, 503, 504]);
+const WAKE_DEADLINE_MS = 90_000;
+const WAKE_RETRY_MS = 3_000;
+
+const fetchWaking = async (url: string): Promise<Response> => {
+  const deadline = Date.now() + WAKE_DEADLINE_MS;
+  for (;;) {
+    try {
+      const res = await fetch(url);
+      if (!WAKE_STATUSES.has(res.status) || Date.now() > deadline) return res;
+    } catch (err) {
+      // Not reachable at all (e.g. the API restarting): retry too, then give up
+      if (Date.now() > deadline) throw err;
+    }
+    await new Promise((resolve) => setTimeout(resolve, WAKE_RETRY_MS));
+  }
+};
+
 const getJson = async <T>(path: string, schema: { parse: (value: unknown) => T }): Promise<T | null> => {
-  const res = await fetch(`${API_URL}/api${path}`);
+  const res = await fetchWaking(`${API_URL}/api${path}`);
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`API ${path} answered ${res.status}`);
   return schema.parse(await res.json());
