@@ -8,7 +8,9 @@ const API_URL = apiUrl();
 // Where product photos may come from. next/image resizes photos on our server, so it only
 // accepts listed hosts: otherwise anyone could use the shop to resize any image on the web.
 // (picsum.photos redirects to fastly.picsum.photos: both are needed for the demo photos.)
-const IMAGE_HOSTS = (process.env.IMAGE_HOSTS ?? "picsum.photos,fastly.picsum.photos,images.unsplash.com")
+// `||`, not `??`: the Docker build sets IMAGE_HOSTS to "" when no value is given, and an empty
+// list would block every photo.
+const IMAGE_HOSTS = (process.env.IMAGE_HOSTS || "picsum.photos,fastly.picsum.photos,images.unsplash.com")
   .split(",")
   .map((host) => host.trim())
   .filter(Boolean);
