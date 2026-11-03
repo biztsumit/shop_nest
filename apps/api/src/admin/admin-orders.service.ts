@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import type { AdminOrder, AdminOrderListQuery, AdminOrderSummary, OrderStatus, Page } from '@shop/shared';
 import type { Env } from '../config/env.js';
 import { EmailQueue } from '../email/email-queue.js';
-import { orderShippedMessage } from '../email/templates.js';
+import { orderCancelledMessage, orderDeliveredMessage, orderShippedMessage } from '../email/templates.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { OrdersService, toOrder } from '../orders/orders.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -17,11 +17,12 @@ const ADMIN_INCLUDE = {
 type AdminRow = Prisma.OrderGetPayload<{ include: typeof ADMIN_INCLUDE }>;
 
 // What happens next to an order, and from which status. Each move is a CLAIM ("only if it's
-// still X"), so two admins clicking at once can't, say, ship an order twice.
+// still X"), so two admins clicking at once can't, say, ship an order twice. Each move also
+// tells the shopper, by email.
 const MOVES = {
-  ship: { from: 'PAID', to: 'SHIPPED', stamp: 'shippedAt' },
-  deliver: { from: 'SHIPPED', to: 'DELIVERED', stamp: 'deliveredAt' },
-} as const satisfies Record<string, { from: OrderStatus; to: OrderStatus; stamp: string }>;
+  ship: { from: 'PAID', to: 'SHIPPED', stamp: 'shippedAt', email: orderShippedMessage },
+  deliver: { from: 'SHIPPED', to: 'DELIVERED', stamp: 'deliveredAt', email: orderDeliveredMessage },
+} as const satisfies Record<string, { from: OrderStatus; to: OrderStatus; stamp: string; email: unknown }>;
 
 @Injectable()
 export class AdminOrdersService {
@@ -68,7 +69,7 @@ export class AdminOrdersService {
   }
 
   async move(number: string, move: keyof typeof MOVES, actorId: string): Promise<AdminOrder> {
-    const { from, to, stamp } = MOVES[move];
+    const { from, to, stamp, email } = MOVES[move];
     const claimed = await this.prisma.order.updateMany({ where: { number, status: from }, data: { status: to, [stamp]: new Date() } });
     if (claimed.count === 0) {
       const order = await this.get(number);
@@ -76,10 +77,7 @@ export class AdminOrdersService {
     }
     this.logger.log({ number, from, to, actorId }, 'Order status changed');
     const order = await this.get(number);
-    if (move === 'ship') {
-      const link = `${this.config.get('WEB_ORIGIN', { infer: true })}/account/orders/${number}`;
-      await this.emails.enqueue(orderShippedMessage(order.customer.email, order.customer.name, order, link));
-    }
+    await this.emails.enqueue(email(order.customer.email, order.customer.name, order, this.link(`/account/orders/${number}`)));
     return order;
   }
 
@@ -91,7 +89,14 @@ export class AdminOrdersService {
       throw new ConflictException('Only unpaid orders can be cancelled here. For a paid order, make a full refund (with restock).');
     }
     this.logger.log({ number, actorId }, 'Order cancelled by an admin');
-    return this.get(number);
+    const cancelled = await this.get(number);
+    await this.emails.enqueue(orderCancelledMessage(cancelled.customer.email, cancelled.customer.name, cancelled, this.link('/products')));
+    return cancelled;
+  }
+
+  // A page of the shop, as a full address for an email
+  private link(path: string): string {
+    return `${this.config.get('WEB_ORIGIN', { infer: true })}${path}`;
   }
 }
 

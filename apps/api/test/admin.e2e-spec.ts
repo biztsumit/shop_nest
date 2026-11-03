@@ -136,7 +136,7 @@ describe('Admin back office (e2e)', () => {
       expect(pageSchema(adminOrderSummarySchema).parse((await boss.as('get', '/admin/orders?status=PAID')).body).data).toEqual([]);
     });
 
-    it('paid → shipped (shopper emailed) → delivered; each move only from the right status', async () => {
+    it('paid → shipped → delivered, emailing the shopper each time; each move only from the right status', async () => {
       const { order } = await placed();
       const boss = await admin();
       await boss.as('post', `/admin/orders/${order.number}/ship`).expect(409);   // not paid yet
@@ -150,14 +150,17 @@ describe('Admin back office (e2e)', () => {
 
       const delivered = adminOrderSchema.parse((await boss.as('post', `/admin/orders/${order.number}/deliver`).expect(200)).body);
       expect(delivered).toMatchObject({ status: 'DELIVERED', customer: { name: 'Riya' }, refunds: [], payment: null });
+      const email = await waitForEmail(app, (m) => m.to === 'riya@example.com' && m.subject === `Order ${order.number} was delivered`);
+      expect(email.text).toContain(`/account/orders/${order.number}`);
     });
 
-    it('cancelling an unpaid order restocks; a paid one must be refunded instead', async () => {
+    it('cancelling an unpaid order restocks and emails the shopper; a paid one must be refunded instead', async () => {
       const { order, variantId } = await placed();
       const boss = await admin();
       expect(await stockOf(prisma, variantId)).toBe(3);
       expect(adminOrderSchema.parse((await boss.as('post', `/admin/orders/${order.number}/cancel`).expect(200)).body).status).toBe('CANCELLED');
       expect(await stockOf(prisma, variantId)).toBe(5);
+      await waitForEmail(app, (m) => m.to === 'riya@example.com' && m.subject === `Order ${order.number} was cancelled`);
     });
 
     it('a paid order cannot be cancelled here', async () => {

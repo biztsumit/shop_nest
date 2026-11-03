@@ -82,6 +82,21 @@ export const orderShippedMessage = (to: string, name: string, order: OrderForEma
   text: `Good news, ${name}!\n\nOrder ${order.number} has shipped.\nTrack it: ${link}\n`,
 });
 
+export const orderDeliveredMessage = (to: string, name: string, order: OrderForEmail, link: string): EmailMessage => ({
+  to,
+  subject: `Order ${order.number} was delivered`,
+  html: layout(`Hi ${name},`, `<p>Order <strong>${escape(order.number)}</strong> has been delivered. We hope you love it! You can review what you bought from your order page.</p>${button(link, 'View your order')}`),
+  text: `Hi ${name},\n\nOrder ${order.number} has been delivered. We hope you love it! You can review what you bought from your order page:\n${link}\n`,
+});
+
+// Unpaid orders only (a paid order is refunded instead, which sends its own email)
+export const orderCancelledMessage = (to: string, name: string, order: OrderForEmail, link: string): EmailMessage => ({
+  to,
+  subject: `Order ${order.number} was cancelled`,
+  html: layout(`Hi ${name},`, `<p>Order <strong>${escape(order.number)}</strong> was cancelled. It was never paid, so no money was taken.</p>${button(link, 'Keep shopping')}`),
+  text: `Hi ${name},\n\nOrder ${order.number} was cancelled. It was never paid, so no money was taken.\nKeep shopping: ${link}\n`,
+});
+
 export const orderRefundedMessage = (to: string, name: string, order: OrderForEmail, amount: number, reason: string): EmailMessage => ({
   to,
   subject: `Refund for order ${order.number}`,
