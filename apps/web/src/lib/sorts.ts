@@ -5,4 +5,5 @@ export const SORTS = [
   { value: "price_asc", label: "Price: low to high" },
   { value: "price_desc", label: "Price: high to low" },
   { value: "name_asc", label: "Name: A to Z" },
+  { value: "rating", label: "Top rated" },
 ] as const;

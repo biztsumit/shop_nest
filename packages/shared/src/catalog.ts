@@ -128,27 +128,62 @@ export type Page<T> = { data: T[]; nextCursor: string | null };
 
 // ---------- GET /api/products query string ----------
 
-export const productSortSchema = z.enum(["newest", "price_asc", "price_desc", "name_asc"]);
+export const productSortSchema = z.enum(["newest", "price_asc", "price_desc", "name_asc", "rating"]);
 export type ProductSort = z.infer<typeof productSortSchema>;
 
 // Everything in a query string is text: z.coerce turns "49900" into 49900
 const optionalPaise = z.coerce.number().int("must be a whole number of paise").min(0).optional();
+// NOT z.coerce.boolean(): that turns the text "false" into true
+const optionalFlag = z.enum(["true", "false"]).transform((v) => v === "true").optional();
 
-export const productListQuerySchema = z
-  .object({
-    search: z.string().trim().max(100).optional().transform((s) => s || undefined),
-    category: slugSchema.optional(),                  // includes its sub-categories
-    minPrice: optionalPaise,
-    maxPrice: optionalPaise,
-    // NOT z.coerce.boolean(): that turns the text "false" into true
-    inStock: z.enum(["true", "false"]).transform((v) => v === "true").optional(),
+// "Black,Navy" → ["Black", "Navy"]: several values of one option, any of which may match.
+// (Option values never contain commas: the shop's own data. An empty list = no filter.)
+const optionValues = z
+  .string()
+  .max(500)
+  .transform((s) => [...new Set(s.split(",").map((v) => v.trim()).filter(Boolean))])
+  .pipe(z.array(z.string().max(50, "each value must be at most 50 characters")).max(20, "at most 20 values"))
+  .optional()
+  .transform((values) => (values?.length ? values : undefined));
+
+// The filters, shared by the product list and its facet counts
+const productFilters = z.object({
+  search: z.string().trim().max(100).optional().transform((s) => s || undefined),
+  category: slugSchema.optional(),                  // includes its sub-categories
+  minPrice: optionalPaise,
+  maxPrice: optionalPaise,
+  inStock: optionalFlag,
+  onSale: optionalFlag,                             // a variant with a "was" price
+  minRating: z.coerce.number().int().min(1).max(5).optional(),   // average stars, at least
+  // Matched on ONE variant: colour=Black&size=L means a black tee that comes in L
+  colour: optionValues,
+  size: optionValues,
+});
+
+const priceRangeInOrder = <T extends { minPrice?: number; maxPrice?: number }>(q: T) =>
+  q.minPrice === undefined || q.maxPrice === undefined || q.minPrice <= q.maxPrice;
+const priceRangeError = { message: "can't be more than maxPrice", path: ["minPrice"] };
+
+export const productListQuerySchema = productFilters
+  .extend({
     sort: productSortSchema.default("newest"),
     limit: z.coerce.number().int().min(1).max(48).default(24),
     cursor: z.string().max(300).optional(),           // from the previous page's nextCursor
   })
-  .refine((q) => q.minPrice === undefined || q.maxPrice === undefined || q.minPrice <= q.maxPrice, {
-    message: "can't be more than maxPrice",
-    path: ["minPrice"],
-  });
+  .refine(priceRangeInOrder, priceRangeError);
 
 export type ProductListQuery = z.infer<typeof productListQuerySchema>;
+
+// ---------- GET /api/products/facets: the choices for the colour and size filters ----------
+
+export const productFacetQuerySchema = productFilters.refine(priceRangeInOrder, priceRangeError);
+export type ProductFacetQuery = z.infer<typeof productFacetQuerySchema>;
+
+// Each value with how many products would match if it were ticked (with the OTHER filters as
+// they are)
+const facetValueSchema = z.object({ value: z.string(), count: z.number().int() });
+export const productFacetsSchema = z.object({
+  colours: z.array(facetValueSchema),
+  sizes: z.array(facetValueSchema),
+});
+export type ProductFacets = z.infer<typeof productFacetsSchema>;

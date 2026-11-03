@@ -4,6 +4,7 @@ import {
   pageSchema,
   problemSchema,
   productDetailSchema,
+  productFacetsSchema,
   productSummarySchema,
   type ProductSummary,
 } from '@shop/shared';
@@ -182,6 +183,85 @@ describe('Public catalog (e2e)', () => {
       // (minPrice > maxPrice is reported once the fields themselves are valid)
       const range = await http().get('/api/products?minPrice=9000&maxPrice=100').expect(422);
       expect(problemSchema.parse(range.body).errors).toEqual([{ path: 'minPrice', message: "can't be more than maxPrice" }]);
+    });
+  });
+
+  describe('colour, size, sale and rating filters', () => {
+    // Stars from made-up shoppers (one review each, as the API allows)
+    const review = async (productId: string, rating: number, hidden = false) => {
+      const user = await prisma.user.create({ data: { email: `${crypto.randomUUID()}@example.com`, name: 'Shopper', passwordHash: '$argon2id$not-a-real-hash' } });
+      return prisma.review.create({ data: { productId, userId: user.id, rating, title: 'Review', hidden } });
+    };
+    const facets = async (query = '') => productFacetsSchema.parse((await http().get(`/api/products/facets${query}`).expect(200)).body);
+
+    beforeEach(async () => {
+      await make.product('black-tee', { variants: [{ price: 59900, options: { colour: 'Black', size: 'S' } }, { price: 59900, stock: 0, options: { colour: 'Black', size: 'L' } }] });
+      await make.product('navy-tee', { variants: [{ price: 59900, compareAtPrice: 79900, options: { colour: 'Navy', size: 'L' } }] });
+      await make.product('two-tone-tee', { variants: [{ price: 69900, options: { colour: 'Black', size: 'M' } }, { price: 69900, options: { colour: 'Navy', size: 'XL' } }] });
+      await make.product('mug', { variants: [{ price: 34900, options: { colour: 'White' } }] });
+    });
+
+    it('colour and size: any of the ticked values, matched on ONE variant', async () => {
+      expect(slugs(await list('?colour=Black&sort=name_asc'))).toEqual(['black-tee', 'two-tone-tee']);
+      expect(slugs(await list('?colour=Black,White&sort=name_asc'))).toEqual(['black-tee', 'mug', 'two-tone-tee']);
+      expect(slugs(await list('?size=L&sort=name_asc'))).toEqual(['black-tee', 'navy-tee']);
+      // two-tone has Black (M) and XL (Navy), but no black XL
+      expect(slugs(await list('?colour=Black&size=XL'))).toEqual([]);
+      // black-tee's L is sold out: with "in stock", it must be THAT variant that's in stock
+      expect(slugs(await list('?colour=Black&size=L&inStock=true'))).toEqual([]);
+      expect(slugs(await list('?colour=Black&size=S&inStock=true'))).toEqual(['black-tee']);
+    });
+
+    it('on sale: a variant with a "was" price', async () => {
+      expect(slugs(await list('?onSale=true'))).toEqual(['navy-tee']);
+      expect(slugs(await list('?onSale=false'))).toHaveLength(4);   // "false" = no filter
+    });
+
+    it('rating: kept up to date by the database from the visible reviews; minimum and "Top rated"', async () => {
+      const [black, navy, twoTone] = await Promise.all(['black-tee', 'navy-tee', 'two-tone-tee'].map((slug) => prisma.product.findUniqueOrThrow({ where: { slug } })));
+      await review(black!.id, 5);
+      await review(black!.id, 3);            // average 4
+      await review(navy!.id, 5);
+      const spam = await review(navy!.id, 1, true);   // hidden: doesn't count
+      await review(twoTone!.id, 3);
+
+      expect(await prisma.product.findUniqueOrThrow({ where: { id: black!.id } })).toMatchObject({ ratingAvg: 4, ratingCount: 2 });
+      expect(slugs(await list('?minRating=4&sort=name_asc'))).toEqual(['black-tee', 'navy-tee']);
+
+      // Un-hiding the 1-star review brings navy down to 3
+      await prisma.review.update({ where: { id: spam.id }, data: { hidden: false } });
+      expect(slugs(await list('?minRating=4'))).toEqual(['black-tee']);
+
+      // Best first, unreviewed last; walked 1 per page to check the cursor
+      const seen: string[] = [];
+      let cursor: string | null = null;
+      do {
+        const page = await list(`?sort=rating&limit=1${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`);
+        seen.push(...slugs(page));
+        cursor = page.nextCursor;
+      } while (cursor && seen.length < 10);
+      // two-tone and navy both average 3: the newer (two-tone) first
+      expect(seen).toEqual(['black-tee', 'two-tone-tee', 'navy-tee', 'mug']);
+    });
+
+    it('facets: each value with its product count, ignoring its own filter but not the others', async () => {
+      expect(await facets()).toEqual({
+        colours: [{ value: 'Black', count: 2 }, { value: 'Navy', count: 2 }, { value: 'White', count: 1 }],
+        sizes: [{ value: 'S', count: 1 }, { value: 'M', count: 1 }, { value: 'L', count: 2 }, { value: 'XL', count: 1 }],   // wearing order
+      });
+      // Black ticked: every colour is still offered, the sizes are those of black variants
+      expect(await facets('?colour=Black')).toEqual({
+        colours: [{ value: 'Black', count: 2 }, { value: 'Navy', count: 2 }, { value: 'White', count: 1 }],
+        sizes: [{ value: 'S', count: 1 }, { value: 'M', count: 1 }, { value: 'L', count: 1 }],
+      });
+      // In stock: black-tee's sold-out L disappears
+      expect((await facets('?colour=Black&inStock=true')).sizes).toEqual([{ value: 'S', count: 1 }, { value: 'M', count: 1 }]);
+      expect((await facets('?search=mug')).sizes).toEqual([]);
+    });
+
+    it('rejects bad values', async () => {
+      const res = await http().get(`/api/products?minRating=6&colour=${'x'.repeat(51)}&onSale=yes`).expect(422);
+      expect(problemSchema.parse(res.body).errors?.map((e) => e.path).sort()).toEqual(['colour.0', 'minRating', 'onSale']);   // colour.0: the first value
     });
   });
 

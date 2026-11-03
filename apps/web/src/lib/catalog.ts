@@ -8,11 +8,13 @@ import {
   categorySchema,
   pageSchema,
   productDetailSchema,
+  productFacetsSchema,
   productSummarySchema,
   reviewSchema,
   type Category,
   type Page,
   type ProductDetail,
+  type ProductFacets,
   type ProductSummary,
   type Review,
 } from "@shop/shared";
@@ -49,27 +51,42 @@ const getJson = async <T>(path: string, schema: { parse: (value: unknown) => T }
   return schema.parse(await res.json());
 };
 
-export type ProductQuery = {
+export type ProductFilterQuery = {
   search?: string;
   category?: string;    // a category slug
-  sort?: string;
   minPrice?: number;    // paise
   maxPrice?: number;
   inStock?: boolean;
-  cursor?: string;
-  limit?: number;
+  onSale?: boolean;
+  minRating?: number;   // 1-5 stars
+  colour?: string;      // "Black,Navy": any of them
+  size?: string;
+};
+
+export type ProductQuery = ProductFilterQuery & { sort?: string; cursor?: string; limit?: number };
+
+// { search: "tee", inStock: false } → "search=tee" (empty and false values are left out)
+const toParams = (query: ProductQuery): URLSearchParams => {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== "" && value !== false) params.set(key, String(value));
+  }
+  return params;
 };
 
 export const getProducts = async (query: ProductQuery): Promise<Page<ProductSummary>> => {
   "use cache";
   cacheLife("minutes");
   cacheTag("products");
+  return (await getJson(`/products?${toParams(query)}`, pageSchema(productSummarySchema))) ?? { data: [], nextCursor: null };
+};
 
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(query)) {
-    if (value !== undefined && value !== "" && value !== false) params.set(key, String(value));
-  }
-  return (await getJson(`/products?${params}`, pageSchema(productSummarySchema))) ?? { data: [], nextCursor: null };
+// The colour and size choices (with counts) for these filters
+export const getFacets = async (query: ProductFilterQuery): Promise<ProductFacets> => {
+  "use cache";
+  cacheLife("minutes");
+  cacheTag("products");
+  return (await getJson(`/products/facets?${toParams(query)}`, productFacetsSchema)) ?? { colours: [], sizes: [] };
 };
 
 export const getProduct = async (slug: string): Promise<ProductDetail | null> => {

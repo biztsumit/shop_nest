@@ -18,6 +18,7 @@ const cursorSchemas: Record<ProductSort, z.ZodType<Cursor>> = {
   price_asc: z.object({ id: z.uuid(), v: z.number().int() }),
   price_desc: z.object({ id: z.uuid(), v: z.number().int() }),
   name_asc: z.object({ id: z.uuid(), v: z.string().max(200) }),
+  rating: z.object({ id: z.uuid(), v: z.number().min(0).max(5) }),
 };
 
 // Each sort, as Prisma's orderBy. The id at the end breaks ties (two products with the same
@@ -27,11 +28,12 @@ export const productOrderBy: Record<ProductSort, Prisma.ProductOrderByWithRelati
   price_asc: [{ price: 'asc' }, { id: 'asc' }],
   price_desc: [{ price: 'desc' }, { id: 'desc' }],
   name_asc: [{ name: 'asc' }, { id: 'asc' }],
+  rating: [{ ratingAvg: 'desc' }, { id: 'desc' }],   // unreviewed products (0) last
 };
 
-export const encodeCursor = (sort: ProductSort, last: { id: string; price: number; name: string }): string => {
-  const cursor: Cursor =
-    sort === 'newest' ? { id: last.id } : { id: last.id, v: sort === 'name_asc' ? last.name : last.price };
+export const encodeCursor = (sort: ProductSort, last: { id: string; price: number; name: string; ratingAvg: number }): string => {
+  const value = { newest: undefined, price_asc: last.price, price_desc: last.price, name_asc: last.name, rating: last.ratingAvg }[sort];
+  const cursor: Cursor = value === undefined ? { id: last.id } : { id: last.id, v: value };
   return Buffer.from(JSON.stringify(cursor)).toString('base64url');
 };
 
@@ -48,6 +50,10 @@ export const afterCursor = (sort: ProductSort, encoded: string): Prisma.ProductW
       return { OR: [{ price: { lt: cursor.v as number } }, { price: cursor.v as number, id: { lt: cursor.id } }] };
     case 'name_asc':
       return { OR: [{ name: { gt: cursor.v as string } }, { name: cursor.v as string, id: { gt: cursor.id } }] };
+    case 'rating':
+      // The average is a floating-point number, but it travels through JSON exactly (both sides
+      // use the same 64-bit doubles), so "equal to v" is safe here
+      return { OR: [{ ratingAvg: { lt: cursor.v as number } }, { ratingAvg: cursor.v as number, id: { lt: cursor.id } }] };
   }
 };
 

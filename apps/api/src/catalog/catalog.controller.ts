@@ -1,8 +1,11 @@
 import { Controller, Get, Header, Param, Query } from '@nestjs/common';
 import {
+  productFacetQuerySchema,
   productListQuerySchema,
   slugSchema,
   type Category,
+  type ProductFacetQuery,
+  type ProductFacets,
   type Page,
   type ProductDetail,
   type ProductListQuery,
@@ -31,6 +34,14 @@ export class CatalogController {
   @Header('Cache-Control', PUBLIC_CACHE)
   listProducts(@Query({ schema: productListQuerySchema }) query: ProductListQuery): Promise<Page<ProductSummary>> {
     return this.catalog.listProducts(query);
+  }
+
+  // GET /api/products/facets?category=clothing&colour=Black: the colour and size choices.
+  // Declared BEFORE products/:slug, which would otherwise take "facets" for a product's slug.
+  @Get('products/facets')
+  @Header('Cache-Control', PUBLIC_CACHE)
+  facets(@Query({ schema: productFacetQuerySchema }) query: ProductFacetQuery): Promise<ProductFacets> {
+    return this.catalog.facets(query);
   }
 
   // GET /api/products/classic-tee

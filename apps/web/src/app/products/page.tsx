@@ -1,4 +1,4 @@
-import type { Category } from "@shop/shared";
+import type { Category, ProductFacets } from "@shop/shared";
 import { formatPrice } from "@shop/shared";
 import { Check, ChevronLeft, ChevronRight, SearchX, X } from "lucide-react";
 import Link from "next/link";
@@ -7,7 +7,8 @@ import { ProductCard, ProductGrid, ProductGridSkeleton } from "@/components/prod
 import { Button, buttonStyles } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { inputStyles } from "@/components/ui/input-styles";
-import { getCategories, getProducts } from "@/lib/catalog";
+import { Stars } from "@/components/ui/stars";
+import { getCategories, getFacets, getProducts } from "@/lib/catalog";
 import { SORTS } from "@/lib/sorts";
 import { cn } from "@/lib/cn";
 import { FilterDrawer, SortSelect } from "./catalog-controls";
@@ -26,11 +27,30 @@ export default function ProductsPage({ searchParams }: PageProps<"/products">) {
   );
 }
 
-// The filters as they appear in the URL (prices in whole RUPEES there: people type ₹, not paise)
-type Filters = { search: string; category: string; sort: string; minPrice: string; maxPrice: string; inStock: string; cursor: string };
-const KEYS = ["search", "category", "sort", "minPrice", "maxPrice", "inStock", "cursor"] as const;
+// The filters as they appear in the URL (prices in whole RUPEES there: people type ₹, not
+// paise; several colours or sizes as one comma-separated value: colour=Black,Navy)
+type Filters = {
+  search: string; category: string; sort: string; minPrice: string; maxPrice: string; inStock: string;
+  onSale: string; minRating: string; colour: string; size: string; cursor: string;
+};
+const KEYS = ["search", "category", "sort", "minPrice", "maxPrice", "inStock", "onSale", "minRating", "colour", "size", "cursor"] as const;
+type Href = (changes: Partial<Filters>) => string;
 
 const pick = (value: string | string[] | undefined): string => (typeof value === "string" ? value.trim() : "");
+const listOf = (value: string): string[] => (value ? value.split(",") : []);
+// "Black,Navy" with Navy clicked → "Black"; with White clicked → "Black,Navy,White"
+const toggled = (value: string, item: string): string => {
+  const list = listOf(value);
+  return (list.includes(item) ? list.filter((v) => v !== item) : [...list, item]).join(",");
+};
+
+// One-click price ranges, in rupees ("" = no limit on that side)
+const PRICE_PRESETS = [
+  { label: "Under ₹500", min: "", max: "500" },
+  { label: "₹500 – ₹1,000", min: "500", max: "1000" },
+  { label: "₹1,000 – ₹2,500", min: "1000", max: "2500" },
+  { label: "Over ₹2,500", min: "2500", max: "" },
+];
 
 async function Catalog({ searchParams }: Pick<PageProps<"/products">, "searchParams">) {
   const raw = await searchParams;
@@ -39,7 +59,13 @@ async function Catalog({ searchParams }: Pick<PageProps<"/products">, "searchPar
   for (const key of ["minPrice", "maxPrice"] as const) {
     if (!/^\d{1,7}$/.test(filters[key])) filters[key] = "";
   }
-  if (filters.inStock !== "true") filters.inStock = "";
+  for (const key of ["inStock", "onSale"] as const) {
+    if (filters[key] !== "true") filters[key] = "";
+  }
+  if (!/^[1-4]$/.test(filters.minRating)) filters.minRating = "";
+  for (const key of ["colour", "size"] as const) {
+    filters[key] = [...new Set(filters[key].split(",").map((v) => v.trim()).filter((v) => v && v.length <= 50))].slice(0, 20).join(",");
+  }
   if (!SORTS.some((s) => s.value === filters.sort)) filters.sort = "";
   if (!/^[a-z0-9-]{1,120}$/.test(filters.category)) filters.category = "";
   // Typed the wrong way round (min 5000, max 500)? Swap them rather than show an error
@@ -47,23 +73,27 @@ async function Catalog({ searchParams }: Pick<PageProps<"/products">, "searchPar
     [filters.minPrice, filters.maxPrice] = [filters.maxPrice, filters.minPrice];
   }
 
-  const [page, categories] = await Promise.all([
-    getProducts({
-      search: filters.search.slice(0, 100) || undefined,
-      category: filters.category || undefined,
-      sort: filters.sort || undefined,
-      minPrice: filters.minPrice ? +filters.minPrice * 100 : undefined,
-      maxPrice: filters.maxPrice ? +filters.maxPrice * 100 : undefined,
-      inStock: filters.inStock === "true",
-      cursor: filters.cursor || undefined,
-      limit: 12,
-    }).catch(() => null),   // a stale or tampered cursor: show page 1's empty state, not a crash
+  const query = {
+    search: filters.search.slice(0, 100) || undefined,
+    category: filters.category || undefined,
+    minPrice: filters.minPrice ? +filters.minPrice * 100 : undefined,
+    maxPrice: filters.maxPrice ? +filters.maxPrice * 100 : undefined,
+    inStock: filters.inStock === "true",
+    onSale: filters.onSale === "true",
+    minRating: filters.minRating ? +filters.minRating : undefined,
+    colour: filters.colour || undefined,
+    size: filters.size || undefined,
+  };
+  const [page, facets, categories] = await Promise.all([
+    getProducts({ ...query, sort: filters.sort || undefined, cursor: filters.cursor || undefined, limit: 12 })
+      .catch(() => null),   // a stale or tampered cursor: show page 1's empty state, not a crash
+    getFacets(query).catch(() => ({ colours: [], sizes: [] })),   // no facets: just no colour/size lists
     getCategories(),
   ]);
   const products = page?.data ?? [];
 
   // A link to this page with some filters changed. Changing a filter starts again at page 1.
-  const href = (changes: Partial<Filters>) => {
+  const href: Href = (changes) => {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries({ ...filters, cursor: "", ...changes })) {
       if (value) params.set(key, value);
@@ -85,10 +115,14 @@ async function Catalog({ searchParams }: Pick<PageProps<"/products">, "searchPar
         : filters.minPrice ? `From ${rupees(filters.minPrice)}` : `Up to ${rupees(filters.maxPrice)}`,
       href: href({ minPrice: "", maxPrice: "" }),
     },
+    ...listOf(filters.colour).map((c) => ({ label: c, href: href({ colour: toggled(filters.colour, c) }) })),
+    ...listOf(filters.size).map((s) => ({ label: `Size ${s}`, href: href({ size: toggled(filters.size, s) }) })),
+    filters.minRating && { label: `${filters.minRating}★ & up`, href: href({ minRating: "" }) },
+    filters.onSale && { label: "On sale", href: href({ onSale: "" }) },
     filters.inStock && { label: "In stock", href: href({ inStock: "" }) },
   ].filter((chip): chip is { label: string; href: string } => Boolean(chip));
 
-  const panel = <FilterPanel filters={filters} categories={categories} href={href} />;
+  const panel = <FilterPanel filters={filters} categories={categories} facets={facets} href={href} />;
   const currentParams = new URLSearchParams(Object.entries(filters).filter(([, v]) => v)).toString();
 
   return (
@@ -103,7 +137,8 @@ async function Catalog({ searchParams }: Pick<PageProps<"/products">, "searchPar
 
       <div className="grid gap-8 lg:grid-cols-[15rem_1fr]">
         <aside className="hidden lg:block" aria-label="Filters">
-          <div className="sticky top-24">{panel}</div>
+          {/* Scrolls on its own when the filters are taller than the screen */}
+          <div className="sticky top-24 max-h-[calc(100dvh-7rem)] overflow-y-auto pb-4">{panel}</div>
         </aside>
 
         <div className="flex flex-col gap-5">
@@ -148,7 +183,7 @@ async function Catalog({ searchParams }: Pick<PageProps<"/products">, "searchPar
   );
 }
 
-function FilterPanel({ filters, categories, href }: { filters: Filters; categories: Category[]; href: (changes: Partial<Filters>) => string }) {
+function FilterPanel({ filters, categories, facets, href }: { filters: Filters; categories: Category[]; facets: ProductFacets; href: Href }) {
   const option = (active: boolean) => cn(
     "flex items-center justify-between rounded-lg px-3 py-2 text-sm",
     active ? "bg-brand-soft font-medium text-brand-text" : "text-muted hover:bg-subtle hover:text-fg",
@@ -165,6 +200,13 @@ function FilterPanel({ filters, categories, href }: { filters: Filters; categori
     </li>
   );
 
+  // A ticked value stays in its list (count 0) even when the other filters leave nothing for
+  // it, so it can always be unticked
+  const withTicked = (values: ProductFacets["colours"], ticked: string) =>
+    [...values, ...listOf(ticked).filter((v) => !values.some((f) => f.value === v)).map((value) => ({ value, count: 0 }))];
+  const colours = withTicked(facets.colours, filters.colour);
+  const sizes = withTicked(facets.sizes, filters.size);
+
   return (
     <div className="flex flex-col gap-6">
       <FilterGroup title="Category">
@@ -175,10 +217,23 @@ function FilterPanel({ filters, categories, href }: { filters: Filters; categori
       </FilterGroup>
 
       <FilterGroup title="Price (₹)">
+        <ul className="flex flex-col gap-0.5">
+          {PRICE_PRESETS.map((p) => {
+            const active = filters.minPrice === p.min && filters.maxPrice === p.max;
+            return (
+              <li key={p.label}>
+                {/* Clicking the active range again removes it */}
+                <Link href={active ? href({ minPrice: "", maxPrice: "" }) : href({ minPrice: p.min, maxPrice: p.max })} className={option(active)} aria-current={active ? "true" : undefined}>
+                  {p.label} {active && <Check className="size-4" aria-hidden />}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
         {/* Submitting loads /products?minPrice=…&maxPrice=…; the hidden fields carry the other
             filters along, so setting a price doesn't lose them */}
         <form action="/products" className="flex flex-col gap-3">
-          {(["search", "category", "sort", "inStock"] as const).map((key) =>
+          {(["search", "category", "sort", "inStock", "onSale", "minRating", "colour", "size"] as const).map((key) =>
             filters[key] ? <input key={key} type="hidden" name={key} value={filters[key]} /> : null)}
           <div className="flex items-center gap-2">
             <input name="minPrice" type="number" min={0} step={1} inputMode="numeric" placeholder="Min" aria-label="Minimum price in rupees" defaultValue={filters.minPrice} className={cn(inputStyles, "h-10 w-auto min-w-0 flex-1")} />
@@ -189,17 +244,95 @@ function FilterPanel({ filters, categories, href }: { filters: Filters; categori
         </form>
       </FilterGroup>
 
-      <FilterGroup title="Availability">
-        <Link href={href({ inStock: filters.inStock ? "" : "true" })} role="checkbox" aria-checked={Boolean(filters.inStock)} className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-subtle">
-          <span className={cn("flex size-5 items-center justify-center rounded-md border", filters.inStock ? "border-brand bg-brand text-brand-fg" : "border-line-strong bg-surface")}>
-            {filters.inStock && <Check className="size-3.5" aria-hidden />}
-          </span>
-          In stock only
-        </Link>
+      {colours.length > 0 && (
+        <FilterGroup title="Colour">
+          <ul className="flex flex-col gap-0.5">
+            {colours.map((c) => (
+              <li key={c.value}>
+                <CheckLink href={href({ colour: toggled(filters.colour, c.value) })} checked={listOf(filters.colour).includes(c.value)}>
+                  <span aria-hidden className="size-4 shrink-0 rounded-full border border-line-strong" style={{ background: swatch(c.value) }} />
+                  <span className="flex-1">{c.value}</span>
+                  <span className="text-faint">({c.count})</span>
+                </CheckLink>
+              </li>
+            ))}
+          </ul>
+        </FilterGroup>
+      )}
+
+      {sizes.length > 0 && (
+        <FilterGroup title="Size">
+          {/* Sizes are short ("M", "UK 8"): buttons in rows rather than a long list */}
+          <ul className="flex flex-wrap gap-2 px-3">
+            {sizes.map((s) => {
+              const checked = listOf(filters.size).includes(s.value);
+              return (
+                <li key={s.value}>
+                  <Link
+                    href={href({ size: toggled(filters.size, s.value) })}
+                    role="checkbox"
+                    aria-checked={checked}
+                    aria-label={`Size ${s.value}, ${s.count} ${s.count === 1 ? "product" : "products"}`}
+                    className={cn(
+                      "flex h-9 min-w-11 items-center justify-center rounded-lg border px-2.5 text-sm",
+                      checked ? "border-brand bg-brand-soft font-medium text-brand-text" : "border-line-strong hover:bg-subtle",
+                      s.count === 0 && !checked && "text-faint",
+                    )}
+                  >
+                    {s.value}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </FilterGroup>
+      )}
+
+      <FilterGroup title="Customer rating">
+        <ul className="flex flex-col gap-0.5">
+          {["4", "3", "2"].map((stars) => {
+            const active = filters.minRating === stars;
+            return (
+              <li key={stars}>
+                <Link href={href({ minRating: active ? "" : stars })} className={option(active)} aria-current={active ? "true" : undefined} aria-label={`${stars} stars and up`}>
+                  <span className="flex items-center gap-1.5"><Stars rating={+stars} /> & up</span>
+                  {active && <Check className="size-4" aria-hidden />}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </FilterGroup>
+
+      <FilterGroup title="Availability & offers">
+        <CheckLink href={href({ inStock: filters.inStock ? "" : "true" })} checked={Boolean(filters.inStock)}>In stock only</CheckLink>
+        <CheckLink href={href({ onSale: filters.onSale ? "" : "true" })} checked={Boolean(filters.onSale)}>On sale</CheckLink>
       </FilterGroup>
     </div>
   );
 }
+
+// A link that looks and behaves like a checkbox: following it turns the filter on or off
+function CheckLink({ href, checked, children }: { href: string; checked: boolean; children: ReactNode }) {
+  return (
+    <Link href={href} role="checkbox" aria-checked={checked} className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-subtle">
+      <span className={cn("flex size-5 shrink-0 items-center justify-center rounded-md border", checked ? "border-brand bg-brand text-brand-fg" : "border-line-strong bg-surface")}>
+        {checked && <Check className="size-3.5" aria-hidden />}
+      </span>
+      {children}
+    </Link>
+  );
+}
+
+// A dot in the product's colour. These are the colours OF the products (not the shop's theme),
+// so they're fixed values; a name not listed gets a neutral striped dot.
+const SWATCHES: Record<string, string> = {
+  black: "#18181b", white: "#ffffff", grey: "#9ca3af", gray: "#9ca3af", navy: "#1e3a8a", blue: "#2563eb",
+  red: "#dc2626", green: "#16a34a", olive: "#6b7a3a", sage: "#9caf88", cream: "#f3ead3", beige: "#e8dcc4",
+  brown: "#7c4a2d", tan: "#c9a27a", pink: "#ec4899", yellow: "#facc15", orange: "#f97316", purple: "#7e22ce",
+};
+const swatch = (name: string): string =>
+  SWATCHES[name.toLowerCase()] ?? "repeating-linear-gradient(45deg, #d4d4d8 0 3px, #f4f4f5 3px 6px)";
 
 function FilterGroup({ title, children }: { title: string; children: ReactNode }) {
   return (
