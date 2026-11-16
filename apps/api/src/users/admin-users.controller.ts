@@ -1,15 +1,17 @@
 import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common';
-import { changeRoleSchema, type AdminUser, type ChangeRole, type Page } from '@shop/shared';
+import {
+  adminUserListQuerySchema,
+  changeRoleSchema,
+  type AdminUser,
+  type AdminUserListQuery,
+  type ChangeRole,
+  type Page,
+} from '@shop/shared';
 import { z } from 'zod';
 import { Auth } from '../auth/auth.decorator.js';
 import type { AuthUser } from '../auth/auth-user.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { UsersService } from './users.service.js';
-
-const listQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(100).default(50),
-  cursor: z.uuid().optional(),
-});
 
 // Every route here: admins only (one decorator on the class covers them all)
 @Auth('ADMIN')
@@ -17,10 +19,10 @@ const listQuerySchema = z.object({
 export class AdminUsersController {
   constructor(private readonly users: UsersService) {}
 
-  // GET /api/admin/users?limit=50&cursor=<last id>
+  // GET /api/admin/users?role=ADMIN&search=riya&limit=50&cursor=<last id>
   @Get()
-  list(@Query({ schema: listQuerySchema }) query: z.infer<typeof listQuerySchema>): Promise<Page<AdminUser>> {
-    return this.users.list(query.limit, query.cursor);
+  list(@Query({ schema: adminUserListQuerySchema }) query: AdminUserListQuery): Promise<Page<AdminUser>> {
+    return this.users.list(query);
   }
 
   // PATCH /api/admin/users/:id/role  { role: "ADMIN" | "CUSTOMER" }

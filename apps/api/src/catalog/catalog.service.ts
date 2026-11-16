@@ -173,7 +173,7 @@ export class CatalogService {
 // In LIKE patterns "%" means "anything" and "_" means "any one character", and Prisma's
 // `contains` passes them through. Without this, searching for "%" would match every product.
 // A backslash in front makes them plain characters again (the backslash itself too).
-const escapeLike = (text: string): string => text.replace(/[\\%_]/g, (char) => `\\${char}`);
+export const escapeLike = (text: string): string => text.replace(/[\\%_]/g, (char) => `\\${char}`);
 
 type FacetOption = 'colour' | 'size';
 

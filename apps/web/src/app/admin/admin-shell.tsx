@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutDashboard, MessageSquare, Package, ShieldAlert, ShoppingCart, Tag } from "lucide-react";
+import { LayoutDashboard, MessageSquare, Package, ShieldAlert, ShoppingCart, Tag, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -15,6 +15,7 @@ const LINKS = [
   { href: "/admin/products", label: "Products", Icon: Package },
   { href: "/admin/coupons", label: "Coupons", Icon: Tag },
   { href: "/admin/reviews", label: "Reviews", Icon: MessageSquare },
+  { href: "/admin/users", label: "Users", Icon: Users },
 ];
 
 export function AdminShell({ children }: { children: ReactNode }) {

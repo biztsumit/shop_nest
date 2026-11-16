@@ -1,7 +1,8 @@
 import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import type { AdminUser, Page, Role } from '@shop/shared';
+import type { AdminUser, AdminUserListQuery, Page, Role } from '@shop/shared';
 import type { User as UserRow } from '../generated/prisma/client.js';
 import { toPublicUser } from '../auth/auth.service.js';
+import { escapeLike } from '../catalog/catalog.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
@@ -11,9 +12,15 @@ export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
   // Newest first. ids are UUID v7 (time-ordered), so the cursor is simply the last id seen.
-  async list(limit: number, cursor?: string): Promise<Page<AdminUser>> {
+  // `search` matches part of the name (any capitals) or of the email (always stored lower-case).
+  async list({ role, search, limit, cursor }: AdminUserListQuery): Promise<Page<AdminUser>> {
+    const term = search && escapeLike(search);
     const rows = await this.prisma.user.findMany({
-      where: cursor ? { id: { lt: cursor } } : {},
+      where: {
+        ...(role ? { role } : {}),
+        ...(term ? { OR: [{ name: { contains: term, mode: 'insensitive' } }, { email: { contains: term.toLowerCase() } }] } : {}),
+        ...(cursor ? { id: { lt: cursor } } : {}),
+      },
       orderBy: { id: 'desc' },
       take: limit + 1,
     });

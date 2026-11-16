@@ -75,6 +75,24 @@ describe('Roles and admin access (e2e)', () => {
       expect(JSON.stringify(res.body)).not.toMatch(/argon2|passwordHash/i);
     });
 
+    it('an admin: filters by role, and searches names and emails', async () => {
+      const riya = await signUp('Riya');
+      await signUp('Arjun');
+      await signUp('Arjuna');
+      await makeAdmin(prisma, 'riya@example.com');
+      const names = async (query: string) =>
+        pageSchema(adminUserSchema).parse((await asUser(riya.accessToken).get(`/api/admin/users?${query}`).expect(200)).body).data.map((u) => u.name);
+
+      expect(await names('role=ADMIN')).toEqual(['Riya']);
+      expect(await names('role=CUSTOMER')).toEqual(['Arjuna', 'Arjun']);
+      expect(await names('search=ARJUN')).toEqual(['Arjuna', 'Arjun']);   // name, any capitals
+      expect(await names('search=riya@exa')).toEqual(['Riya']);           // part of the email
+      expect(await names('search=arjun&role=ADMIN')).toEqual([]);
+      // LIKE wildcards are plain characters: "%" matches nobody, not everybody
+      expect(await names('search=%25')).toEqual([]);
+      await asUser(riya.accessToken).get('/api/admin/users?role=SUPERUSER').expect(422);
+    });
+
     it('a demoted admin loses access immediately, even with an "admin" token', async () => {
       const riya = await signUp('Riya');
       await makeAdmin(prisma, 'riya@example.com');

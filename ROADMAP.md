@@ -42,3 +42,8 @@ Built one step at a time. Each step: working code, tests, and what's new explain
 - [x] 8.1 Docker images and docker-compose
 - [x] 8.2 Deployment (prepared, not deployed) (behind the host's load balancer, which must add X-Forwarded-For: see README "Client IPs")
 - [x] 8.3 Observability: error tracking, metrics, tracing
+
+## Phase 10: Closing the gaps
+- [x] 10.1 Admin users page: search by name or email, filter by role, make or remove admins
+- [ ] 10.2 Product image upload (instead of pasting image URLs)
+- [ ] 10.3 Audit log: who changed what in the back office, and when

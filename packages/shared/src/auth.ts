@@ -64,8 +64,18 @@ export const adminUserSchema = userSchema.extend({ createdAt: z.string() });   /
 
 export const changeRoleSchema = z.object({ role: roleSchema });
 
+// GET /api/admin/users?role=ADMIN&search=riya&limit=50&cursor=<last id>
+export const adminUserListQuerySchema = z.object({
+  role: roleSchema.optional(),
+  // Part of the name or the email, any capitals
+  search: z.string().trim().max(100).optional().transform((s) => s || undefined),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  cursor: z.uuid().optional(),
+});
+
 export type AdminUser = z.infer<typeof adminUserSchema>;
 export type ChangeRole = z.infer<typeof changeRoleSchema>;
+export type AdminUserListQuery = z.infer<typeof adminUserListQuerySchema>;
 
 // ---------- Email links and passwords ----------
 
