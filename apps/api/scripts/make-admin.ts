@@ -9,7 +9,9 @@
 import { pgAdapter } from '../src/prisma/adapter.js';
 import { emailSchema } from '@shop/shared';
 import { pathToFileURL } from 'node:url';
+import { recordAudit } from '../src/audit/record.js';
 import { PrismaClient } from '../src/generated/prisma/client.js';
+import { roleChangeEvent } from '../src/users/role-change-event.js';
 
 export type MakeAdminResult = 'promoted' | 'already-admin' | 'no-such-user';
 
@@ -18,7 +20,11 @@ export async function makeAdmin(prisma: PrismaClient, rawEmail: string): Promise
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) return 'no-such-user';
   if (user.role === 'ADMIN') return 'already-admin';
-  await prisma.user.update({ where: { id: user.id }, data: { role: 'ADMIN' } });
+  // In the audit log too, as done by "the shop" (no admin did it: someone ran this on the server)
+  await prisma.$transaction(async (tx) => {
+    const promoted = await tx.user.update({ where: { id: user.id }, data: { role: 'ADMIN' } });
+    await recordAudit(tx, roleChangeEvent(null, promoted, user.role));
+  });
   return 'promoted';
 }
 

@@ -157,6 +157,7 @@ model User {
   couponRedemptions CouponRedemption[]
   wishlistItems     WishlistItem[]
   reviews           Review[]
+  auditEvents       AuditEvent[]
 
   @@map("users")
 }
@@ -483,4 +484,33 @@ model WebhookEvent {
   processedAt DateTime? @map("processed_at") @db.Timestamptz(3) // null = failed, Razorpay will retry
 
   @@map("webhook_events")
+}
+
+// ---------- Audit log ----------
+
+// Who changed what in the back office, and when. Each row is written in the SAME transaction as
+// the change it describes, so the two exist together or not at all. The database refuses to
+// change or delete rows (a trigger: see the *_audit_events migration): history stays history.
+model AuditEvent {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  // The admin who did it; null = the shop itself (an automatic refund, the make-admin script).
+  // Restrict: an account with history can't be deleted, like one with orders.
+  actorId    String?  @map("actor_id") @db.Uuid
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  action     String   @db.VarChar(40) // "variant.update": the kinds are listed in packages/shared/src/audit.ts
+  // What it was about, as admin pages find it: a product/coupon/review/user/category id, or an
+  // order NUMBER. Variant changes are filed under their product, so its history shows them.
+  entityType String   @map("entity_type") @db.VarChar(20)
+  entityId   String   @map("entity_id") @db.VarChar(64)
+  // One line for people, written when it happened (with the names of that moment)
+  summary    String   @db.VarChar(500)
+  // The exact values: { "price": { "from": 129900, "to": 119900 } }
+  changes    Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  // "History of this product / order", newest first
+  @@index([entityType, entityId, id(sort: Desc)])
+  // "What did this admin do?"
+  @@index([actorId, id(sort: Desc)])
+  @@map("audit_events")
 }

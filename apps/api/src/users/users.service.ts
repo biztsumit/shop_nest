@@ -1,15 +1,20 @@
 import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { AdminUser, AdminUserListQuery, Page, Role } from '@shop/shared';
 import type { User as UserRow } from '../generated/prisma/client.js';
+import { AuditService } from '../audit/audit.service.js';
 import { toPublicUser } from '../auth/auth.service.js';
 import { escapeLike } from '../catalog/catalog.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { roleChangeEvent } from './role-change-event.js';
 
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   // Newest first. ids are UUID v7 (time-ordered), so the cursor is simply the last id seen.
   // `search` matches part of the name (any capitals) or of the email (always stored lower-case).
@@ -45,10 +50,13 @@ export class UsersService {
       if (target.role === 'ADMIN' && role !== 'ADMIN' && admins.length <= 1) {
         throw new ConflictException("This is the shop's last admin. Make someone else an admin first.");
       }
-      return tx.user.update({ where: { id: userId }, data: { role } });
+      const updated = await tx.user.update({ where: { id: userId }, data: { role } });
+      if (target.role !== role) {
+        await this.audit.record(tx, roleChangeEvent(actorId, updated, target.role));
+      }
+      return updated;
     });
 
-    // Who changed whose role: worth a line in the log (an audit log comes later)
     this.logger.log({ actorId, userId, role }, 'User role changed');
     return toAdminUser(user);
   }

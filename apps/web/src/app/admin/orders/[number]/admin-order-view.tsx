@@ -15,6 +15,7 @@ import { api, errorMessage } from "@/lib/client-api";
 import { formatDateTime, formatOptions } from "@/lib/format";
 import { useLoad } from "@/lib/use-load";
 import { AdminHeader } from "../../admin-shell";
+import { AuditTrail } from "../../audit-trail";
 
 export function AdminOrderView({ number }: { number: string }) {
   const { data: order, error, setData, reload } = useLoad(`/admin/orders/${number}`, adminOrderSchema);
@@ -70,6 +71,8 @@ export function AdminOrderView({ number }: { number: string }) {
             </dl>
           </Card>
           <Payment order={order} onRefunded={reload} />
+          {/* Loads again whenever the order moves on or gets a refund */}
+          <AuditTrail key={`${order.status}-${order.refunds.length}`} entityType="order" entityId={order.number} />
         </div>
         <div className="flex flex-col gap-6">
           <Card className="flex flex-col gap-1 p-5 text-sm">

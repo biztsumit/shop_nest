@@ -1,5 +1,6 @@
 import { BadGatewayException, ConflictException, Injectable, Logger, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { formatPrice, type CreateRefund, type Refund } from '@shop/shared';
+import { AuditService } from '../audit/audit.service.js';
 import { EmailQueue } from '../email/email-queue.js';
 import { orderRefundedMessage } from '../email/templates.js';
 import type { Refund as RefundRow } from '../generated/prisma/client.js';
@@ -25,6 +26,7 @@ export class RefundsService {
     private readonly razorpay: RazorpayClient,
     private readonly orders: OrdersService,
     private readonly emails: EmailQueue,
+    private readonly audit: AuditService,
   ) {}
 
   async list(number: string): Promise<Refund[]> {
@@ -81,6 +83,16 @@ export class RefundsService {
         await tx.order.update({ where: { id: order.id }, data: { status: 'REFUNDED' } });
       }
       if (input.restock) await this.orders.restock(tx, order.id);
+      // Recorded once the money is on its way (a refund Razorpay refused changed nothing).
+      // actorId null = the shop refunded by itself.
+      await this.audit.record(tx, {
+        actorId,
+        action: 'refund.create',
+        entityType: 'order',
+        entityId: order.number,
+        summary: `${order.number}: refunded ${formatPrice(refund.amount)}${full ? ' (in full)' : ''}${input.restock ? ', items restocked' : ''}. Reason: ${input.reason}`,
+        changes: { refundedAmount: { from: updated.refundedAmount - refund.amount, to: updated.refundedAmount } },
+      });
       return refund;
     });
 

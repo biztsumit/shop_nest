@@ -1,7 +1,10 @@
 import { Body, Controller, Get, NotFoundException, Param, Patch, Query } from '@nestjs/common';
 import { moderateReviewSchema, type AdminReview, type ModerateReview, type Page } from '@shop/shared';
 import { z } from 'zod';
+import { AuditService } from '../audit/audit.service.js';
 import { Auth } from '../auth/auth.decorator.js';
+import type { AuthUser } from '../auth/auth-user.js';
+import { CurrentUser } from '../auth/current-user.decorator.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { toReview } from '../reviews/reviews.service.js';
 
@@ -16,7 +19,10 @@ const INCLUDE = { user: { select: { name: true } }, product: { select: { name: t
 @Auth('ADMIN')
 @Controller('admin/reviews')
 export class AdminReviewsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Get()
   async list(@Query({ schema: listQuery }) query: z.infer<typeof listQuery>): Promise<Page<AdminReview>> {
@@ -34,10 +40,27 @@ export class AdminReviewsController {
   }
 
   @Patch(':id')
-  async moderate(@Param('id', { schema: z.uuid() }) id: string, @Body({ schema: moderateReviewSchema }) body: ModerateReview): Promise<AdminReview> {
+  async moderate(
+    @CurrentUser() admin: AuthUser,
+    @Param('id', { schema: z.uuid() }) id: string,
+    @Body({ schema: moderateReviewSchema }) body: ModerateReview,
+  ): Promise<AdminReview> {
     const exists = await this.prisma.review.findUnique({ where: { id } });
     if (!exists) throw new NotFoundException('No such review');
-    const r = await this.prisma.review.update({ where: { id }, data: { hidden: body.hidden }, include: INCLUDE });
+    const r = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.review.update({ where: { id }, data: { hidden: body.hidden }, include: INCLUDE });
+      if (exists.hidden !== body.hidden) {
+        await this.audit.record(tx, {
+          actorId: admin.id,
+          action: body.hidden ? 'review.hide' : 'review.show',
+          entityType: 'review',
+          entityId: id,
+          summary: `${body.hidden ? 'Hid' : 'Showed again'} a ${updated.rating}★ review by ${updated.user.name} on "${updated.product.name}"`,
+          changes: { hidden: { from: exists.hidden, to: body.hidden } },
+        });
+      }
+      return updated;
+    });
     return { ...toReview(r), hidden: r.hidden, product: r.product };
   }
 }

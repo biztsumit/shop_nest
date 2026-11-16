@@ -6,6 +6,7 @@ import { loggingModule } from './common/logging.js';
 import { validateEnv, type Env } from './config/env.js';
 import { AddressesModule } from './addresses/addresses.module.js';
 import { AdminModule } from './admin/admin.module.js';
+import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { CartModule } from './cart/cart.module.js';
 import { CatalogModule } from './catalog/catalog.module.js';
@@ -44,6 +45,7 @@ import { WishlistModule } from './wishlist/wishlist.module.js';
     }),
     PrismaModule,
     MetricsModule,
+    AuditModule,
     JobsModule,
     EmailModule,
     HealthModule,

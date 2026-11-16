@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { AdminOrder, AdminOrderListQuery, AdminOrderSummary, OrderStatus, Page } from '@shop/shared';
+import { AuditService } from '../audit/audit.service.js';
 import type { Env } from '../config/env.js';
 import { EmailQueue } from '../email/email-queue.js';
 import { orderCancelledMessage, orderDeliveredMessage, orderShippedMessage } from '../email/templates.js';
@@ -33,6 +34,7 @@ export class AdminOrdersService {
     private readonly orders: OrdersService,
     private readonly emails: EmailQueue,
     private readonly config: ConfigService<Env, true>,
+    private readonly audit: AuditService,
   ) {}
 
   async list({ status, search, limit, cursor }: AdminOrderListQuery): Promise<Page<AdminOrderSummary>> {
@@ -70,8 +72,21 @@ export class AdminOrdersService {
 
   async move(number: string, move: keyof typeof MOVES, actorId: string): Promise<AdminOrder> {
     const { from, to, stamp, email } = MOVES[move];
-    const claimed = await this.prisma.order.updateMany({ where: { number, status: from }, data: { status: to, [stamp]: new Date() } });
-    if (claimed.count === 0) {
+    // The claim and its audit record together: either both happen, or neither
+    const moved = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.order.updateMany({ where: { number, status: from }, data: { status: to, [stamp]: new Date() } });
+      if (claimed.count === 0) return false;
+      await this.audit.record(tx, {
+        actorId,
+        action: `order.${move}`,
+        entityType: 'order',
+        entityId: number,
+        summary: `${number}: ${from.toLowerCase()} → ${to.toLowerCase()}`,
+        changes: { status: { from, to } },
+      });
+      return true;
+    });
+    if (!moved) {
       const order = await this.get(number);
       throw new ConflictException(`Only ${from.toLowerCase()} orders can be marked ${to.toLowerCase()}; this one is ${order.status.toLowerCase().replace('_', ' ')}.`);
     }
@@ -85,7 +100,19 @@ export class AdminOrdersService {
   async cancel(number: string, actorId: string): Promise<AdminOrder> {
     const order = await this.prisma.order.findUnique({ where: { number } });
     if (!order) throw new NotFoundException('No such order');
-    if (!(await this.orders.release(order.id, 'CANCELLED', ['PENDING_PAYMENT']))) {
+    const cancelledNow = await this.prisma.$transaction(async (tx) => {
+      if (!(await this.orders.release(order.id, 'CANCELLED', ['PENDING_PAYMENT'], tx))) return false;
+      await this.audit.record(tx, {
+        actorId,
+        action: 'order.cancel',
+        entityType: 'order',
+        entityId: number,
+        summary: `${number}: cancelled before payment (items back on sale)`,
+        changes: { status: { from: 'PENDING_PAYMENT', to: 'CANCELLED' } },
+      });
+      return true;
+    });
+    if (!cancelledNow) {
       throw new ConflictException('Only unpaid orders can be cancelled here. For a paid order, make a full refund (with restock).');
     }
     this.logger.log({ number, actorId }, 'Order cancelled by an admin');

@@ -16,6 +16,7 @@ import { formatOptions } from "@/lib/format";
 import { ImageUploadError, uploadImages } from "@/lib/upload-image";
 import { useLoad } from "@/lib/use-load";
 import { AdminHeader } from "../../admin-shell";
+import { AuditTrail } from "../../audit-trail";
 import { STATUS_TONE } from "../../product-status";
 
 const categories = categorySchema.array();
@@ -24,6 +25,8 @@ export function ProductEditor({ id }: { id: string }) {
   const { data: product, error, setData } = useLoad(`/admin/products/${id}`, adminProductDetailSchema);
   const { data: cats } = useLoad("/categories", categories);
   const toast = useToast();
+  // Goes up with every saved change, so the History panel loads again and shows it
+  const [saves, setSaves] = useState(0);
 
   if (error) return <p role="alert" className="text-danger">{error}</p>;
   if (!product) return <div className="h-64 animate-pulse rounded-xl bg-subtle" aria-busy />;
@@ -32,6 +35,7 @@ export function ProductEditor({ id }: { id: string }) {
   const save = async (path: string, method: "PATCH" | "POST" | "DELETE", body: unknown, done: string): Promise<boolean> => {
     try {
       setData(adminProductDetailSchema.parse(await api(path, { method, body })));
+      setSaves((n) => n + 1);
       toast.show(done);
       return true;
     } catch (err) {
@@ -52,6 +56,7 @@ export function ProductEditor({ id }: { id: string }) {
       <Details product={product} categories={cats ?? []} onSave={(body) => save(`/admin/products/${id}`, "PATCH", body, "Product saved")} />
       <Photos product={product} onSave={(images) => save(`/admin/products/${id}`, "PATCH", { images }, "Photos saved")} />
       <Variants product={product} save={save} />
+      <AuditTrail key={saves} entityType="product" entityId={product.id} />
       <p className="text-sm text-muted">Changes reach the shop&apos;s pages within a few minutes (they&apos;re cached for speed).</p>
     </div>
   );
