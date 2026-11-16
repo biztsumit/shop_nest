@@ -65,4 +65,12 @@ describe('validateEnv', () => {
     expect(() => validateEnv({ ...valid, EMAIL_TRANSPORT: 'brevo' })).toThrow(/BREVO_API_KEY: is required/);
     expect(validateEnv({ ...valid, EMAIL_TRANSPORT: 'brevo', BREVO_API_KEY: 'xkeysib-test' }).EMAIL_TRANSPORT).toBe('brevo');
   });
+
+  it('Cloudinary needs all three settings, or none', () => {
+    const cloudinary = { CLOUDINARY_CLOUD_NAME: 'shop', CLOUDINARY_API_KEY: '123456789012345', CLOUDINARY_API_SECRET: 'a-secret-value' };
+    expect(validateEnv({ ...valid, ...cloudinary }).CLOUDINARY_CLOUD_NAME).toBe('shop');
+    expect(() => validateEnv({ ...valid, CLOUDINARY_CLOUD_NAME: 'shop' })).toThrow(/set all three or none/);
+    // An empty line in .env means "not set", not "set to nothing"
+    expect(validateEnv({ ...valid, CLOUDINARY_CLOUD_NAME: '', CLOUDINARY_API_KEY: '', CLOUDINARY_API_SECRET: '' }).CLOUDINARY_CLOUD_NAME).toBeUndefined();
+  });
 });

@@ -92,7 +92,7 @@ export default function NewProductPage() {
 
         <Card className="grid gap-4 p-5 sm:grid-cols-2">
           <h2 className="font-semibold sm:col-span-2">Main photo (optional)</h2>
-          <TextField label="Photo URL" name="imageUrl" type="url" placeholder="https://images.unsplash.com/…" error={fields.url} />
+          <TextField label="Photo URL" name="imageUrl" type="url" placeholder="https://images.unsplash.com/…" error={fields.url} hint="Or upload photos from your computer on the next page" />
           <TextField label="What it shows (for screen readers)" name="imageAlt" />
         </Card>
 

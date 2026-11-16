@@ -1,11 +1,11 @@
 "use client";
 
-import { adminProductDetailSchema, categorySchema, parseRupees, type AdminProductDetail, type AdminVariant, type ProductStatus } from "@shop/shared";
-import { ExternalLink, Plus, Trash2, X } from "lucide-react";
+import { adminProductDetailSchema, categorySchema, IMAGE_UPLOAD_ACCEPT, parseRupees, type AdminProductDetail, type AdminVariant, type ProductStatus } from "@shop/shared";
+import { ExternalLink, ImagePlus, Plus, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonStyles } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SelectField, TextareaField, TextField } from "@/components/ui/field";
 import { inputStyles } from "@/components/ui/input-styles";
@@ -13,6 +13,7 @@ import { useToast } from "@/components/ui/toast";
 import { api, errorMessage } from "@/lib/client-api";
 import { cn } from "@/lib/cn";
 import { formatOptions } from "@/lib/format";
+import { ImageUploadError, uploadImages } from "@/lib/upload-image";
 import { useLoad } from "@/lib/use-load";
 import { AdminHeader } from "../../admin-shell";
 import { STATUS_TONE } from "../../product-status";
@@ -88,7 +89,25 @@ function Details({ product, categories, onSave }: { product: AdminProductDetail;
 
 function Photos({ product, onSave }: { product: AdminProductDetail; onSave: (images: Array<{ url: string; alt: string }>) => Promise<boolean> }) {
   const [url, setUrl] = useState("");
+  const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null);
+  const toast = useToast();
   const change = (images: Array<{ url: string; alt: string }>) => onSave(images);
+
+  const upload = async (input: HTMLInputElement) => {
+    const files = [...(input.files ?? [])];
+    input.value = "";   // choosing the same file again should upload it again
+    if (files.length === 0) return;
+    setUploading({ done: 0, total: files.length });
+    try {
+      const photos = await uploadImages(files, (done) => setUploading({ done, total: files.length }));
+      await change([...product.images, ...photos.map((p) => ({ url: p.secure_url, alt: product.name }))]);
+    } catch (err) {
+      toast.show(err instanceof ImageUploadError ? err.message : errorMessage(err), "error");
+    } finally {
+      setUploading(null);
+    }
+  };
+
   return (
     <Card className="flex flex-col gap-4 p-5">
       <h2 className="font-semibold">Photos <span className="text-sm font-normal text-muted">(the first is the main one)</span></h2>
@@ -108,6 +127,15 @@ function Photos({ product, onSave }: { product: AdminProductDetail; onSave: (ima
           ))}
         </ul>
       )}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* A real <label> around a hidden file input: the whole button opens the file picker */}
+        <label className={cn(buttonStyles(), "cursor-pointer", uploading && "pointer-events-none opacity-60")}>
+          <ImagePlus className="size-4" aria-hidden />
+          {uploading ? `Uploading ${uploading.done + 1} of ${uploading.total}…` : "Upload photos"}
+          <input type="file" accept={IMAGE_UPLOAD_ACCEPT} multiple disabled={uploading !== null} className="sr-only" onChange={(e) => upload(e.currentTarget)} />
+        </label>
+        <span className="text-xs text-muted">JPEG, PNG, WebP or AVIF, up to 10 MB each</span>
+      </div>
       <form
         className="flex gap-2"
         onSubmit={async (e) => {
@@ -115,8 +143,8 @@ function Photos({ product, onSave }: { product: AdminProductDetail; onSave: (ima
           if (url && (await change([...product.images, { url, alt: product.name }]))) setUrl("");
         }}
       >
-        <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://… photo URL" aria-label="Photo URL" className={cn(inputStyles, "h-10 max-w-md")} />
-        <Button type="submit" variant="secondary">Add photo</Button>
+        <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="…or paste a photo URL" aria-label="Photo URL" className={cn(inputStyles, "h-10 max-w-md")} />
+        <Button type="submit" variant="secondary">Add URL</Button>
       </form>
     </Card>
   );

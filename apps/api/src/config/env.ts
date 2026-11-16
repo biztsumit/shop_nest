@@ -65,6 +65,14 @@ const envSchema = z
     // Only changed by tests, which point it at a fake Razorpay server
     RAZORPAY_API_URL: z.url().default('https://api.razorpay.com'),
 
+    // ---------- Product photos (Cloudinary) ----------
+    // From the Cloudinary Console → Settings → API Keys. The browser uploads photos straight to
+    // Cloudinary with a signature the API makes; the secret never leaves the API. Without these,
+    // admins can still paste photo URLs.
+    CLOUDINARY_CLOUD_NAME: z.preprocess(emptyToUndefined, z.string().regex(/^[\w-]+$/, 'must be the cloud name from the Cloudinary Console').optional()),
+    CLOUDINARY_API_KEY: z.preprocess(emptyToUndefined, z.string().regex(/^\d+$/, 'must be the numeric API key').optional()),
+    CLOUDINARY_API_SECRET: z.preprocess(emptyToUndefined, z.string().min(8).optional()),
+
     // ---------- Observability ----------
     // GET /api/metrics (Prometheus) answers only with "Authorization: Bearer <this>". Not set:
     // the endpoint doesn't exist (404).
@@ -81,6 +89,10 @@ const envSchema = z
     // Both keys or neither: one without the other is always a mistake
     if (Boolean(env.RAZORPAY_KEY_ID) !== Boolean(env.RAZORPAY_KEY_SECRET)) {
       ctx.addIssue({ code: 'custom', path: ['RAZORPAY_KEY_SECRET'], message: 'RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET go together: set both or neither' });
+    }
+    const cloudinary = [env.CLOUDINARY_CLOUD_NAME, env.CLOUDINARY_API_KEY, env.CLOUDINARY_API_SECRET].filter(Boolean).length;
+    if (cloudinary !== 0 && cloudinary !== 3) {
+      ctx.addIssue({ code: 'custom', path: ['CLOUDINARY_API_SECRET'], message: 'CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET go together: set all three or none' });
     }
   })
   .transform((env) => ({ ...env, LOG_LEVEL: env.LOG_LEVEL ?? (env.NODE_ENV === 'test' ? 'silent' : 'info') }));

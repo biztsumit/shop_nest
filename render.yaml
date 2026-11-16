@@ -59,6 +59,13 @@ services:
       # ...but this is the secret of shop-nest's OWN webhook (each webhook has its own)
       - key: RAZORPAY_WEBHOOK_SECRET
         sync: false
+      # Product photo uploads: all three from the Cloudinary Console, or all empty (= paste URLs)
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
       # Observability: the metrics token is generated; Sentry is optional (leave empty = off)
       - key: METRICS_TOKEN
         generateValue: true

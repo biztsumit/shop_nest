@@ -45,5 +45,5 @@ Built one step at a time. Each step: working code, tests, and what's new explain
 
 ## Phase 10: Closing the gaps
 - [x] 10.1 Admin users page: search by name or email, filter by role, make or remove admins
-- [ ] 10.2 Product image upload (instead of pasting image URLs)
+- [x] 10.2 Product photo upload: signed direct uploads from the browser to Cloudinary (pasting URLs still works)
 - [ ] 10.3 Audit log: who changed what in the back office, and when

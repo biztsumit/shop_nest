@@ -18,6 +18,7 @@ import { OrdersModule } from './orders/orders.module.js';
 import { PaymentsModule } from './payments/payments.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ReviewsModule } from './reviews/reviews.module.js';
+import { UploadsModule } from './uploads/uploads.module.js';
 import { UsersModule } from './users/users.module.js';
 import { WishlistModule } from './wishlist/wishlist.module.js';
 
@@ -57,6 +58,7 @@ import { WishlistModule } from './wishlist/wishlist.module.js';
     PaymentsModule,
     MaintenanceModule,
     AdminModule,
+    UploadsModule,
   ],
   providers: [
     // A GUARD decides whether a request may continue at all. APP_GUARD makes this one apply to

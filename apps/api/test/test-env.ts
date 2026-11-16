@@ -2,6 +2,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { parse } from 'dotenv';
 import { FAKE_KEY_ID, FAKE_KEY_SECRET, FAKE_RAZORPAY_PORT, FAKE_WEBHOOK_SECRET } from './support/fake-razorpay.js';
 
+export const CLOUDINARY_TEST_SECRET = 'test-only-cloudinary-secret';
+
 // The settings end-to-end tests run with.
 // - On a developer machine: apps/api/.env.test (git-ignored), which points at a SEPARATE
 //   database, so tests never touch the data you click around in.
@@ -33,6 +35,10 @@ export const loadTestEnv = (): Record<string, string> => {
     RAZORPAY_KEY_SECRET: FAKE_KEY_SECRET,
     RAZORPAY_WEBHOOK_SECRET: FAKE_WEBHOOK_SECRET,
     RAZORPAY_API_URL: `http://127.0.0.1:${FAKE_RAZORPAY_PORT}`,
+    // Made-up Cloudinary keys: tests check the signatures; nothing is ever uploaded
+    CLOUDINARY_CLOUD_NAME: 'shop-test',
+    CLOUDINARY_API_KEY: '123456789012345',
+    CLOUDINARY_API_SECRET: CLOUDINARY_TEST_SECRET,
   };
 };
 
