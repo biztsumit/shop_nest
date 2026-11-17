@@ -47,3 +47,11 @@ Built one step at a time. Each step: working code, tests, and what's new explain
 - [x] 10.1 Admin users page: search by name or email, filter by role, make or remove admins
 - [x] 10.2 Product photo upload: signed direct uploads from the browser to Cloudinary (pasting URLs still works)
 - [x] 10.3 Audit log: who changed what in the back office, and when (written in the same transaction as the change; append-only in the database); Activity page and History panels
+
+## Phase 11: Features shoppers notice
+- [x] 11.1 Back-in-stock alerts: "Email me when it's back" on sold-out variants; a job every 5 minutes emails each waiting shopper once
+- [ ] 11.2 Abandoned-cart reminder email
+- [ ] 11.3 Cash on delivery
+- [ ] 11.4 GST invoice PDF for paid orders
+- [ ] 11.5 Shipping integration (tracking numbers, status by webhook)
+- [ ] 11.6 Better search: typo-tolerant results and autocomplete

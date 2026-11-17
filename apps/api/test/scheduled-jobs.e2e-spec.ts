@@ -26,10 +26,11 @@ describe('Scheduled jobs and clean-up (e2e)', () => {
     await app.close();
   });
 
-  it('the timetable: expire every minute, reconcile every 5, clean up nightly', () => {
+  it('the timetable: expire every minute, reconcile and stock alerts every 5, clean up nightly', () => {
     expect(app.get(QueueService).schedules).toEqual([
       { name: 'orders.expire', cron: '* * * * *' },
       { name: 'payments.reconcile', cron: '*/5 * * * *' },
+      { name: 'stock-alerts.notify', cron: '*/5 * * * *' },
       { name: 'maintenance.clean-up', cron: '30 3 * * *' },
     ]);
   });
@@ -67,7 +68,7 @@ describe('Scheduled jobs and clean-up (e2e)', () => {
     const before = { refresh: await prisma.refreshToken.count(), email: await prisma.emailToken.count() };
 
     const removed = await app.get(MaintenanceService).cleanUp(now);
-    expect(removed).toEqual({ refreshTokens: 1, emailTokens: 1, webhookEvents: 1 });
+    expect(removed).toEqual({ refreshTokens: 1, emailTokens: 1, webhookEvents: 1, stockAlerts: 0 });
     expect(await prisma.refreshToken.count()).toBe(before.refresh - 1);
     expect(await prisma.emailToken.count()).toBe(before.email - 1);
     expect((await prisma.webhookEvent.findMany({ orderBy: { id: 'asc' } })).map((e) => e.id)).toEqual(['evt_new', 'evt_unprocessed']);

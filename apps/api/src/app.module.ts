@@ -19,6 +19,7 @@ import { OrdersModule } from './orders/orders.module.js';
 import { PaymentsModule } from './payments/payments.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ReviewsModule } from './reviews/reviews.module.js';
+import { StockAlertsModule } from './stock-alerts/stock-alerts.module.js';
 import { UploadsModule } from './uploads/uploads.module.js';
 import { UsersModule } from './users/users.module.js';
 import { WishlistModule } from './wishlist/wishlist.module.js';
@@ -56,6 +57,7 @@ import { WishlistModule } from './wishlist/wishlist.module.js';
     AddressesModule,
     OrdersModule,
     WishlistModule,
+    StockAlertsModule,
     ReviewsModule,
     PaymentsModule,
     MaintenanceModule,

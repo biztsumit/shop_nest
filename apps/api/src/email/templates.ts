@@ -107,3 +107,14 @@ export const orderRefundedMessage = (to: string, name: string, order: OrderForEm
   ),
   text: `Hi ${name},\n\nWe've refunded ${formatPrice(amount)} for order ${order.number}. ${reason}\nRefunds usually reach your account in 5-7 working days.\n`,
 });
+
+// A back-in-stock alert. `item` is the product and its options: "Classic Tee (size M, black)"
+export const backInStockMessage = (to: string, name: string, item: string, price: number, link: string): EmailMessage => ({
+  to,
+  subject: `Back in stock: ${item}`,
+  html: layout(
+    `Good news, ${name}!`,
+    `<p><strong>${escape(item)}</strong> is back in stock, at ${formatPrice(price)}. Popular sizes can sell out again quickly.</p>${button(link, 'Get it now')}`,
+  ),
+  text: `Good news, ${name}!\n\n${item} is back in stock, at ${formatPrice(price)}. Popular sizes can sell out again quickly:\n${link}\n`,
+});

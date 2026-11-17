@@ -108,6 +108,7 @@ model ProductVariant {
   updatedAt      DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
   cartItems      CartItem[]
   orderItems     OrderItem[]
+  stockAlerts    StockAlert[]
 
   @@unique([productId, optionsKey])
   @@map("product_variants")
@@ -158,6 +159,7 @@ model User {
   wishlistItems     WishlistItem[]
   reviews           Review[]
   auditEvents       AuditEvent[]
+  stockAlerts       StockAlert[]
 
   @@map("users")
 }
@@ -513,4 +515,27 @@ model AuditEvent {
   // "What did this admin do?"
   @@index([actorId, id(sort: Desc)])
   @@map("audit_events")
+}
+
+// ---------- Back-in-stock alerts ----------
+
+// "Email me when this is back": one per shopper per sold-out variant. A background job checks
+// every few minutes for waiting alerts whose variant has stock again, CLAIMS each one (sets
+// notified_at) and queues the email: one email per alert, however often the job runs.
+// Asking again later (sold out again) starts a new wait on the same row.
+model StockAlert {
+  id         String         @id @default(uuid(7)) @db.Uuid
+  userId     String         @map("user_id") @db.Uuid
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // A deleted variant takes its alerts with it: there's nothing left to come back
+  variantId  String         @map("variant_id") @db.Uuid
+  variant    ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  // null = still waiting; set when the email was queued
+  notifiedAt DateTime?      @map("notified_at") @db.Timestamptz(3)
+
+  @@unique([userId, variantId])
+  // The job: "waiting alerts" (notified_at IS NULL), by variant
+  @@index([notifiedAt, variantId])
+  @@map("stock_alerts")
 }

@@ -10,17 +10,20 @@ export class MaintenanceService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async cleanUp(now = new Date()): Promise<{ refreshTokens: number; emailTokens: number; webhookEvents: number }> {
+  async cleanUp(now = new Date()): Promise<{ refreshTokens: number; emailTokens: number; webhookEvents: number; stockAlerts: number }> {
     const dayAgo = new Date(now.getTime() - DAY);
-    const [refreshTokens, emailTokens, webhookEvents] = await this.prisma.$transaction([
+    const monthAgo = new Date(now.getTime() - 30 * DAY);
+    const [refreshTokens, emailTokens, webhookEvents, stockAlerts] = await this.prisma.$transaction([
       // Expired over a day ago: they can't log anyone in, and reuse detection doesn't need them
       this.prisma.refreshToken.deleteMany({ where: { expiresAt: { lt: dayAgo } } }),
       // Email links past their time (used or not)
       this.prisma.emailToken.deleteMany({ where: { expiresAt: { lt: dayAgo } } }),
       // Razorpay stops retrying an event after a day; a month of history is plenty
-      this.prisma.webhookEvent.deleteMany({ where: { processedAt: { lt: new Date(now.getTime() - 30 * DAY) } } }),
+      this.prisma.webhookEvent.deleteMany({ where: { processedAt: { lt: monthAgo } } }),
+      // Back-in-stock alerts whose email went out a month ago (waiting ones are kept)
+      this.prisma.stockAlert.deleteMany({ where: { notifiedAt: { lt: monthAgo } } }),
     ]);
-    const counts = { refreshTokens: refreshTokens.count, emailTokens: emailTokens.count, webhookEvents: webhookEvents.count };
+    const counts = { refreshTokens: refreshTokens.count, emailTokens: emailTokens.count, webhookEvents: webhookEvents.count, stockAlerts: stockAlerts.count };
     this.logger.log(counts, 'Cleaned up old rows');
     return counts;
   }

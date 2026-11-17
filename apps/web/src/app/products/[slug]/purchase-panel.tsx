@@ -7,6 +7,7 @@ import { Price } from "@/components/ui/price";
 import { WishlistButton } from "@/components/wishlist-button";
 import { cn } from "@/lib/cn";
 import { AddToCart } from "./add-to-cart";
+import { NotifyMe } from "./notify-me";
 import { choose, findVariant, initialChoice, isAvailable, optionNames, valuesOf } from "./variant-options";
 
 // "Only 3 left" is honest urgency: shown only when it's true
@@ -67,7 +68,8 @@ export function PurchasePanel({ product }: { product: ProductDetail }) {
       </p>
 
       <div className="flex gap-3">
-        <div className="flex-1"><AddToCart product={product} variant={variant} /></div>
+        {/* Sold out: offer an email when it's back, instead of a disabled button */}
+        <div className="flex-1">{variant && variant.stock === 0 ? <NotifyMe variant={variant} /> : <AddToCart product={product} variant={variant} />}</div>
         <WishlistButton productId={product.id} name={product.name} withLabel />
       </div>
 

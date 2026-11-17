@@ -16,3 +16,4 @@ export * from "./admin.js";
 export * from "./reports.js";
 export * from "./uploads.js";
 export * from "./audit.js";
+export * from "./stock-alerts.js";
