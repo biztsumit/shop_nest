@@ -118,3 +118,32 @@ export const backInStockMessage = (to: string, name: string, item: string, price
   ),
   text: `Good news, ${name}!\n\n${item} is back in stock, at ${formatPrice(price)}. Popular sizes can sell out again quickly:\n${link}\n`,
 });
+
+// "You left something in your cart". A marketing-style email, so it always carries a one-click
+// way to stop them (`unsubscribeLink` works without logging in).
+export const cartReminderMessage = (
+  to: string,
+  name: string,
+  lines: Array<{ name: string; quantity: number; lineTotal: number }>,
+  subtotal: number,
+  link: string,
+  unsubscribeLink: string,
+): EmailMessage => {
+  const shown = lines.slice(0, 3);
+  const more = lines.length - shown.length;
+  const list = shown.map((l) => `${l.quantity} × ${l.name}: ${formatPrice(l.lineTotal)}`);
+  if (more > 0) list.push(`and ${more} more`);
+  return {
+    to,
+    subject: 'You left something in your cart',
+    html: layout(
+      `Still thinking it over, ${name}?`,
+      `<p>Your cart is saved and waiting:</p>
+       <ul>${list.map((item) => `<li>${escape(item)}</li>`).join('')}</ul>
+       <p>Subtotal: <strong>${formatPrice(subtotal)}</strong>. Prices and stock can change, so don't wait too long.</p>
+       ${button(link, 'Finish checking out')}
+       <p style="color:#5b5b6b;font-size:13px">Don't want these reminders? <a href="${escape(unsubscribeLink)}">Turn them off</a>.</p>`,
+    ),
+    text: `Still thinking it over, ${name}?\n\nYour cart is saved and waiting:\n${list.map((item) => `- ${item}`).join('\n')}\n\nSubtotal: ${formatPrice(subtotal)}\nFinish checking out: ${link}\n\nDon't want these reminders? Turn them off: ${unsubscribeLink}\n`,
+  };
+};

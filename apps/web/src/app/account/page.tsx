@@ -1,6 +1,6 @@
 "use client";
 
-import { addressSchema, authResponseSchema, changePasswordSchema, type Address } from "@shop/shared";
+import { addressSchema, authResponseSchema, changePasswordSchema, emailPreferencesSchema, type Address } from "@shop/shared";
 import { BadgeCheck, MailWarning, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/card";
 import { PasswordField } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
 import { api, ApiRequestError, errorMessage } from "@/lib/client-api";
+import { useLoad } from "@/lib/use-load";
 
 export default function AccountPage() {
   return (
@@ -20,6 +21,7 @@ export default function AccountPage() {
       <Profile />
       <Addresses />
       <ChangePassword />
+      <Emails />
       <Sessions />
     </div>
   );
@@ -193,6 +195,37 @@ function ChangePassword() {
         {error && <p role="alert" className="text-sm text-danger sm:col-span-2">{error}</p>}
         <Button type="submit" className="w-fit" loading={busy}>Change password</Button>
       </form>
+    </Section>
+  );
+}
+
+// Optional emails. (Emails about orders and the account itself always go.)
+function Emails() {
+  const { data, setData } = useLoad("/account/preferences", emailPreferencesSchema);
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+
+  const change = async (cartReminders: boolean) => {
+    setBusy(true);
+    try {
+      setData(emailPreferencesSchema.parse(await api("/account/preferences", { method: "PATCH", body: { cartReminders } })));
+      toast.show(cartReminders ? "Cart reminders are on" : "Cart reminders are off");
+    } catch (err) {
+      toast.show(errorMessage(err), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Section title="Emails" description="Emails about your orders and your account always come. These are up to you.">
+      <label className="flex items-start gap-3 text-sm">
+        <input type="checkbox" checked={data?.cartReminders ?? false} disabled={!data || busy} onChange={(e) => change(e.target.checked)} className="mt-0.5 size-4 accent-brand" />
+        <span>
+          <span className="font-medium">Cart reminders</span>
+          <span className="block text-muted">One email if you leave items in your cart for a day.</span>
+        </span>
+      </label>
     </Section>
   );
 }

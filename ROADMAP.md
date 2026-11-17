@@ -50,7 +50,7 @@ Built one step at a time. Each step: working code, tests, and what's new explain
 
 ## Phase 11: Features shoppers notice
 - [x] 11.1 Back-in-stock alerts: "Email me when it's back" on sold-out variants; a job every 5 minutes emails each waiting shopper once
-- [ ] 11.2 Abandoned-cart reminder email
+- [x] 11.2 Abandoned-cart reminders: one email per cart left for a day (confirmed emails, daytime only), with a one-click unsubscribe link and an account setting
 - [ ] 11.3 Cash on delivery
 - [ ] 11.4 GST invoice PDF for paid orders
 - [ ] 11.5 Shipping integration (tracking numbers, status by webhook)

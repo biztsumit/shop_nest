@@ -9,6 +9,7 @@ import { AdminModule } from './admin/admin.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { CartModule } from './cart/cart.module.js';
+import { CartRemindersModule } from './cart-reminders/cart-reminders.module.js';
 import { CatalogModule } from './catalog/catalog.module.js';
 import { EmailModule } from './email/email.module.js';
 import { HealthModule } from './health/health.module.js';
@@ -58,6 +59,7 @@ import { WishlistModule } from './wishlist/wishlist.module.js';
     OrdersModule,
     WishlistModule,
     StockAlertsModule,
+    CartRemindersModule,
     ReviewsModule,
     PaymentsModule,
     MaintenanceModule,

@@ -148,6 +148,11 @@ model User {
   role              Role               @default(CUSTOMER)
   // When they clicked the link in the verification email (null = not verified yet)
   emailVerifiedAt   DateTime?          @map("email_verified_at") @db.Timestamptz(3)
+  // "You left something in your cart" emails: on unless turned off (account page, or the
+  // one-click link in each reminder). cart_reminded_at = when the last one was sent: one
+  // reminder per abandoned cart, re-armed by any later change to the cart.
+  cartReminders     Boolean            @default(true) @map("cart_reminders")
+  cartRemindedAt    DateTime?          @map("cart_reminded_at") @db.Timestamptz(3)
   emailTokens       EmailToken[]
   refreshTokens     RefreshToken[]
   createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)

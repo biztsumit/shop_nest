@@ -4,3 +4,6 @@
 //   reset); a reset token must never be accepted as a login, so each kind has its own audience.
 export const TOKEN_ISSUER = 'shop-nest-api';
 export const ACCESS_AUDIENCE = 'access';
+// The one-click "stop cart reminders" link in reminder emails. It can do exactly one thing, so
+// it's a signed token (no database row), and AccessTokenGuard refuses it as a login.
+export const UNSUBSCRIBE_AUDIENCE = 'unsubscribe-cart-reminders';
