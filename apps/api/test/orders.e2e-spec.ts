@@ -41,7 +41,11 @@ describe('Orders (e2e)', () => {
     const riya = await shopperWith([[tee, 2], [mug, 1]]);
 
     const quote = quoteResultSchema.parse((await riya.as('post', '/orders/quote', {}).expect(200)).body);
-    expect(quote).toEqual({ subtotal: 129700, discount: 0, shippingFee: 0, total: 129700, couponCode: null });
+    expect(quote).toEqual({
+      subtotal: 129700, discount: 0, shippingFee: 0, codFee: 0, total: 129700, couponCode: null, paymentMethod: 'ONLINE',
+      // A new account's email isn't confirmed yet: no cash on delivery
+      cod: { available: false, reason: 'Confirm your email address to pay on delivery.' },
+    });
 
     const res = await riya.place(undefined, { expectedTotal: 129700 }).expect(201);
     const order = orderSchema.parse(res.body);

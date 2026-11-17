@@ -100,6 +100,7 @@ export class PaymentsService {
   async start(userId: string, number: string): Promise<StartPayment> {
     const order = await this.prisma.order.findFirst({ where: { number, userId }, include: { user: true, payment: true } });
     if (!order) throw new NotFoundException('No such order');
+    if (order.paymentMethod === 'COD') throw new ConflictException('This order is paid in cash on delivery.');
     if (order.status !== 'PENDING_PAYMENT') {
       throw new ConflictException(order.status === 'PAID' ? 'This order is already paid.' : "This order can't be paid any more.");
     }

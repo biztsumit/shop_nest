@@ -24,11 +24,11 @@ import { OrdersService } from './orders.service.js';
 export class OrdersController {
   constructor(private readonly orders: OrdersService) {}
 
-  // POST /api/orders/quote  { couponCode }: the checkout's price summary
+  // POST /api/orders/quote  { couponCode, paymentMethod }: the checkout's price summary
   @Post('quote')
   @HttpCode(200)
   quote(@CurrentUser() user: AuthUser, @Body({ schema: quoteSchema }) body: Quote): Promise<QuoteResult> {
-    return this.orders.quote(user.id, body.couponCode);
+    return this.orders.quote(user.id, body.couponCode, body.paymentMethod);
   }
 
   // POST /api/orders  { addressId, couponCode?, expectedTotal? }  + header Idempotency-Key

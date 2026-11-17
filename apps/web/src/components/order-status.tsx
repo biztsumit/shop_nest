@@ -6,9 +6,11 @@ import { Badge, type BadgeTone } from "./ui/badge";
 
 const STATUS: Record<OrderStatus, { label: string; tone: BadgeTone }> = {
   PENDING_PAYMENT: { label: "Awaiting payment", tone: "warning" },
+  CONFIRMED: { label: "Confirmed · pay on delivery", tone: "info" },
   PAID: { label: "Paid", tone: "success" },
   SHIPPED: { label: "Shipped", tone: "info" },
   DELIVERED: { label: "Delivered", tone: "success" },
+  RETURNED: { label: "Returned · not delivered", tone: "neutral" },
   CANCELLED: { label: "Cancelled", tone: "neutral" },
   EXPIRED: { label: "Expired", tone: "neutral" },
   REFUNDED: { label: "Refunded", tone: "neutral" },
@@ -19,16 +21,24 @@ export function OrderStatusBadge({ status }: { status: OrderStatus }) {
   return <Badge tone={STATUS[status].tone}>{STATUS[status].label}</Badge>;
 }
 
-// Placed → Paid → Shipped → Delivered, with the time of each step done so far.
-// An order that ended early (cancelled, expired, refunded) shows where it stopped.
+// Placed → Paid → Shipped → Delivered, with the time of each step done so far. Cash on
+// delivery has no separate payment step: it's paid when it's delivered.
+// An order that ended early (cancelled, expired, returned, refunded) shows where it stopped.
 export function OrderTimeline({ order }: { order: Order }) {
-  const steps = [
-    { label: "Order placed", at: order.createdAt },
-    { label: "Payment received", at: order.paidAt },
-    { label: "Shipped", at: order.shippedAt },
-    { label: "Delivered", at: order.deliveredAt },
-  ];
-  const ended = order.status === "CANCELLED" || order.status === "EXPIRED" || order.status === "REFUNDED";
+  const steps = order.paymentMethod === "COD"
+    ? [
+        { label: "Order confirmed", at: order.createdAt },
+        { label: "Shipped", at: order.shippedAt },
+        { label: "Delivered and paid", at: order.deliveredAt },
+      ]
+    : [
+        { label: "Order placed", at: order.createdAt },
+        { label: "Payment received", at: order.paidAt },
+        { label: "Shipped", at: order.shippedAt },
+        { label: "Delivered", at: order.deliveredAt },
+      ];
+  const ended = (["CANCELLED", "EXPIRED", "RETURNED", "REFUNDED"] as OrderStatus[]).includes(order.status);
+  const endedAt = order.returnedAt ?? order.cancelledAt;
 
   return (
     <ol className="flex flex-col gap-0">
@@ -53,7 +63,7 @@ export function OrderTimeline({ order }: { order: Order }) {
           <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-subtle text-muted"><CircleX className="size-4" aria-hidden /></span>
           <div className="flex flex-col pt-0.5">
             <span className="text-sm font-medium">{STATUS[order.status].label}</span>
-            {order.cancelledAt && <span className="text-xs text-muted">{formatDateTime(order.cancelledAt)}</span>}
+            {endedAt && <span className="text-xs text-muted">{formatDateTime(endedAt)}</span>}
           </div>
         </li>
       )}

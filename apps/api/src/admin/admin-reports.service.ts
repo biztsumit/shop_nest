@@ -122,10 +122,10 @@ export class AdminReportsService {
     const orders = await this.prisma.order.findMany({
       where: { createdAt: { gte: new Date(end.getTime() - days * DAY), lt: end } },
       orderBy: { id: 'asc' },
-      include: { user: { select: { name: true, email: true } }, items: { select: { quantity: true } }, payment: { select: { refundedAmount: true } } },
+      include: { user: { select: { name: true, email: true } }, items: { select: { quantity: true } }, refunds: { where: { status: { not: 'FAILED' } }, select: { amount: true } } },
     });
     const rupees = (paise: number) => (paise / 100).toFixed(2);
-    const header = ['order', 'placed_ist', 'paid_ist', 'status', 'customer', 'email', 'items', 'subtotal', 'discount', 'delivery', 'total', 'refunded', 'coupon'];
+    const header = ['order', 'placed_ist', 'paid_ist', 'status', 'customer', 'email', 'items', 'subtotal', 'discount', 'delivery', 'cod_fee', 'total', 'refunded', 'coupon'];
     const lines = orders.map((o) => [
       o.number,
       istDateTime(o.createdAt),
@@ -137,8 +137,10 @@ export class AdminReportsService {
       rupees(o.subtotal),
       rupees(o.discount),
       rupees(o.shippingFee),
+      rupees(o.codFee),
       rupees(o.total),
-      rupees(o.payment?.refundedAmount ?? 0),
+      // Online and cash-on-delivery refunds alike (failed ones gave nothing back)
+      rupees(o.refunds.reduce((sum, r) => sum + r.amount, 0)),
       o.couponCode ?? '',
     ]);
     return [header, ...lines].map((row) => row.map(csvCell).join(',')).join('\r\n') + '\r\n';

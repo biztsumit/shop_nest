@@ -56,7 +56,7 @@ describe('Coupons, wishlist and reviews (e2e)', () => {
       const riya = await shopperWith([[await variantOf(prisma, 'classic-tee', { price: 99900 }), 2]]);
 
       const quote = quoteResultSchema.parse((await riya.quote('diwali10').expect(200)).body);
-      expect(quote).toEqual({ subtotal: 199800, discount: 19980, shippingFee: 0, total: 179820, couponCode: 'DIWALI10' });
+      expect(quote).toMatchObject({ subtotal: 199800, discount: 19980, shippingFee: 0, codFee: 0, total: 179820, couponCode: 'DIWALI10' });
 
       const order = orderSchema.parse((await riya.place({ couponCode: 'diwali10', expectedTotal: 179820 }).expect(201)).body);
       expect(order).toMatchObject({ discount: 19980, total: 179820, couponCode: 'DIWALI10' });

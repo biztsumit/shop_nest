@@ -94,6 +94,14 @@ export function OrderView({ number }: { number: string }) {
       {params.get("paid") === "1" && order.status === "PAID" && (
         <Banner tone="success" Icon={CircleCheck}>Thank you! Your payment went through, and a confirmation is on its way to your inbox.</Banner>
       )}
+      {order.status === "CONFIRMED" && (
+        <Banner tone="info" Icon={Info}>
+          <span className="flex flex-1 flex-wrap items-center justify-between gap-3">
+            <span>Confirmed! Please keep <strong>{formatPrice(order.total)}</strong> ready to pay the courier when it arrives.</span>
+            <Button size="sm" variant="ghost" loading={busy === "cancel"} disabled={busy !== null} onClick={cancel}>Cancel order</Button>
+          </span>
+        </Banner>
+      )}
       {order.status === "PENDING_PAYMENT" && (
         paymentUnavailable ? (
           <Banner tone="info" Icon={Info}>Online payment isn&apos;t set up on this shop yet, so this order can&apos;t be paid here. It&apos;s held until {order.expiresAt && formatDateTime(order.expiresAt)}.</Banner>
@@ -131,7 +139,8 @@ export function OrderView({ number }: { number: string }) {
             <div className="flex justify-between"><dt className="text-muted">Subtotal</dt><dd className="tabular-nums">{formatPrice(order.subtotal)}</dd></div>
             {order.discount > 0 && <div className="flex justify-between"><dt className="text-muted">Coupon {order.couponCode}</dt><dd className="text-success tabular-nums">−{formatPrice(order.discount)}</dd></div>}
             <div className="flex justify-between"><dt className="text-muted">Delivery</dt><dd className="tabular-nums">{order.shippingFee === 0 ? "Free" : formatPrice(order.shippingFee)}</dd></div>
-            <div className="flex justify-between text-base font-semibold"><dt>Total</dt><dd className="tabular-nums">{formatPrice(order.total)}</dd></div>
+            {order.codFee > 0 && <div className="flex justify-between"><dt className="text-muted">Cash on delivery fee</dt><dd className="tabular-nums">{formatPrice(order.codFee)}</dd></div>}
+            <div className="flex justify-between text-base font-semibold"><dt>{order.paymentMethod === "COD" && !order.paidAt ? "To pay on delivery" : "Total"}</dt><dd className="tabular-nums">{formatPrice(order.total)}</dd></div>
           </dl>
         </Card>
 

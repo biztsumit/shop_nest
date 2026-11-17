@@ -1,7 +1,7 @@
 "use client";
 
 import { adminOrderSchema, formatPrice, parseRupees, type AdminOrder } from "@shop/shared";
-import { CheckCheck, Truck, XCircle } from "lucide-react";
+import { CheckCheck, Truck, Undo2, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { AddressLines } from "@/components/address-form";
@@ -25,8 +25,10 @@ export function AdminOrderView({ number }: { number: string }) {
   if (error) return <p role="alert" className="text-danger">{error}</p>;
   if (!order) return <div className="h-64 animate-pulse rounded-xl bg-subtle" aria-busy />;
 
-  const act = async (action: "ship" | "deliver" | "cancel", done: string) => {
-    if (action === "cancel" && !confirm("Cancel this unpaid order? Its items go back on sale.")) return;
+  const cod = order.paymentMethod === "COD";
+  const act = async (action: "ship" | "deliver" | "return" | "cancel", done: string) => {
+    if (action === "cancel" && !confirm(`Cancel this ${cod ? "cash-on-delivery" : "unpaid"} order? Its items go back on sale.`)) return;
+    if (action === "return" && !confirm("Mark this parcel as returned (refused at the door, or undeliverable)? It closes the order unpaid, and its items go back on sale.")) return;
     setBusy(action);
     try {
       setData(adminOrderSchema.parse(await api(`/admin/orders/${number}/${action}`, { method: "POST" })));
@@ -43,9 +45,18 @@ export function AdminOrderView({ number }: { number: string }) {
       <Link href="/admin/orders" className="text-sm text-muted hover:text-fg">← Orders</Link>
       <AdminHeader title={`Order ${order.number}`}>
         <OrderStatusBadge status={order.status} />
-        {order.status === "PAID" && <Button loading={busy === "ship"} onClick={() => act("ship", "Marked as shipped; the customer was emailed")}><Truck className="size-4" aria-hidden /> Mark shipped</Button>}
-        {order.status === "SHIPPED" && <Button loading={busy === "deliver"} onClick={() => act("deliver", "Marked as delivered")}><CheckCheck className="size-4" aria-hidden /> Mark delivered</Button>}
-        {order.status === "PENDING_PAYMENT" && <Button variant="danger" loading={busy === "cancel"} onClick={() => act("cancel", "Order cancelled")}><XCircle className="size-4" aria-hidden /> Cancel</Button>}
+        {(order.status === "PAID" || order.status === "CONFIRMED") && <Button loading={busy === "ship"} onClick={() => act("ship", "Marked as shipped; the customer was emailed")}><Truck className="size-4" aria-hidden /> Mark shipped</Button>}
+        {order.status === "SHIPPED" && (
+          <Button loading={busy === "deliver"} onClick={() => act("deliver", cod ? "Marked as delivered; the cash is recorded as paid" : "Marked as delivered")}>
+            <CheckCheck className="size-4" aria-hidden /> {cod ? `Delivered, ${formatPrice(order.total)} collected` : "Mark delivered"}
+          </Button>
+        )}
+        {order.status === "SHIPPED" && cod && (
+          <Button variant="secondary" loading={busy === "return"} onClick={() => act("return", "Marked as returned; the items are back on sale")}>
+            <Undo2 className="size-4" aria-hidden /> Returned to us
+          </Button>
+        )}
+        {(order.status === "PENDING_PAYMENT" || order.status === "CONFIRMED") && <Button variant="danger" loading={busy === "cancel"} onClick={() => act("cancel", "Order cancelled")}><XCircle className="size-4" aria-hidden /> Cancel</Button>}
       </AdminHeader>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
@@ -67,7 +78,8 @@ export function AdminOrderView({ number }: { number: string }) {
               <div className="flex justify-between"><dt className="text-muted">Subtotal</dt><dd className="tabular-nums">{formatPrice(order.subtotal)}</dd></div>
               {order.discount > 0 && <div className="flex justify-between"><dt className="text-muted">Coupon {order.couponCode}</dt><dd className="tabular-nums">−{formatPrice(order.discount)}</dd></div>}
               <div className="flex justify-between"><dt className="text-muted">Delivery</dt><dd className="tabular-nums">{formatPrice(order.shippingFee)}</dd></div>
-              <div className="flex justify-between font-semibold"><dt>Total</dt><dd className="tabular-nums">{formatPrice(order.total)}</dd></div>
+              {order.codFee > 0 && <div className="flex justify-between"><dt className="text-muted">Cash on delivery fee</dt><dd className="tabular-nums">{formatPrice(order.codFee)}</dd></div>}
+              <div className="flex justify-between font-semibold"><dt>{cod ? "To collect on delivery" : "Total"}</dt><dd className="tabular-nums">{formatPrice(order.total)}</dd></div>
             </dl>
           </Card>
           <Payment order={order} onRefunded={reload} />
@@ -98,8 +110,12 @@ function Payment({ order, onRefunded }: { order: AdminOrder; onRefunded: () => v
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const payment = order.payment;
-  const refundable = payment ? payment.amount - payment.refundedAmount : 0;
-  const canRefund = payment !== null && refundable > 0 && ["CAPTURED", "PARTIALLY_REFUNDED"].includes(payment.status);
+  // Cash on delivery: the shop pays the shopper back itself (UPI, bank transfer) and records it
+  // here with a reference. Only once the cash was collected, i.e. the order was delivered.
+  const cod = order.paymentMethod === "COD";
+  const codRefunded = order.refunds.filter((r) => r.status !== "FAILED").reduce((sum, r) => sum + r.amount, 0);
+  const refundable = cod ? order.total - codRefunded : payment ? payment.amount - payment.refundedAmount : 0;
+  const canRefund = refundable > 0 && (cod ? order.status === "DELIVERED" : payment !== null && ["CAPTURED", "PARTIALLY_REFUNDED"].includes(payment.status));
 
   const refund = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -110,11 +126,17 @@ function Payment({ order, onRefunded }: { order: AdminOrder; onRefunded: () => v
       return;
     }
     const label = formatPrice(amount ?? refundable);
-    if (!confirm(`Refund ${label} to the customer? This sends real money back and can't be undone.`)) return;
+    const question = cod
+      ? `Record that you paid ${label} back to the customer (reference ${f.reference})? They're emailed, and it can't be undone.`
+      : `Refund ${label} to the customer? This sends real money back and can't be undone.`;
+    if (!confirm(question)) return;
     setBusy(true);
     try {
-      await api(`/admin/orders/${order.number}/refunds`, { method: "POST", body: { ...(amount !== null && { amount }), reason: f.reason, restock: f.restock === "on" } });
-      toast.show(`Refunded ${label}`);
+      await api(`/admin/orders/${order.number}/refunds`, {
+        method: "POST",
+        body: { ...(amount !== null && { amount }), reason: f.reason, restock: f.restock === "on", ...(cod && { reference: f.reference }) },
+      });
+      toast.show(cod ? `Recorded a refund of ${label}` : `Refunded ${label}`);
       onRefunded();
     } catch (err) {
       toast.show(errorMessage(err), "error");
@@ -126,7 +148,14 @@ function Payment({ order, onRefunded }: { order: AdminOrder; onRefunded: () => v
   return (
     <Card className="flex flex-col gap-4 p-5">
       <h2 className="font-semibold">Payment</h2>
-      {!payment ? (
+      {cod ? (
+        <p className="text-sm text-muted">
+          Cash on delivery: {order.paidAt
+            ? `${formatPrice(order.total)} collected on delivery${codRefunded > 0 ? `, ${formatPrice(codRefunded)} refunded` : ""}. To refund, pay the customer back yourself (UPI or bank transfer), then record it below.`
+            : order.status === "RETURNED" ? "the parcel came back unpaid, so there's nothing to refund."
+            : `the courier collects ${formatPrice(order.total)}.`}
+        </p>
+      ) : !payment ? (
         <p className="text-sm text-muted">No payment started.</p>
       ) : (
         <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
@@ -140,7 +169,7 @@ function Payment({ order, onRefunded }: { order: AdminOrder; onRefunded: () => v
         <ul className="flex flex-col gap-1 text-sm">
           {order.refunds.map((r) => (
             <li key={r.id} className="flex justify-between gap-3 rounded-lg bg-subtle px-3 py-2">
-              <span>{formatPrice(r.amount)} · {r.reason}</span>
+              <span>{formatPrice(r.amount)} · {r.reason}{r.reference && <span className="text-muted"> · ref {r.reference}</span>}</span>
               <span className="text-muted">{r.status.toLowerCase()} · {formatDateTime(r.createdAt)}</span>
             </li>
           ))}
@@ -150,10 +179,11 @@ function Payment({ order, onRefunded }: { order: AdminOrder; onRefunded: () => v
         <form onSubmit={refund} className="grid gap-3 border-t border-line pt-4 sm:grid-cols-2">
           <TextField label="Amount (₹)" name="amount" inputMode="decimal" placeholder={`Everything left: ${formatPrice(refundable)}`} />
           <TextField label="Reason" name="reason" required placeholder="Damaged in transit" />
+          {cod && <TextField label="How you paid it back" name="reference" required maxLength={100} placeholder="UPI ref 412345678901" />}
           <label className="flex items-center gap-2 text-sm sm:col-span-2">
             <input type="checkbox" name="restock" className="size-4 accent-brand" /> Put the items back on sale (full refunds only)
           </label>
-          <Button type="submit" variant="danger" className="w-fit" loading={busy}>Refund</Button>
+          <Button type="submit" variant="danger" className="w-fit" loading={busy}>{cod ? "Record refund" : "Refund"}</Button>
         </form>
       )}
     </Card>

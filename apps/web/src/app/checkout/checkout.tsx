@@ -1,7 +1,7 @@
 "use client";
 
-import { addressSchema, formatPrice, orderSchema, quoteResultSchema, type Address, type QuoteResult } from "@shop/shared";
-import { Check, ImageOff, Lock, Plus, ShoppingBag, Tag } from "lucide-react";
+import { addressSchema, COD_FEE, formatPrice, orderSchema, quoteResultSchema, type Address, type PaymentMethod, type QuoteResult } from "@shop/shared";
+import { Banknote, Check, CreditCard, ImageOff, Lock, Plus, ShoppingBag, Tag } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -30,6 +30,7 @@ export function Checkout() {
   const [addressId, setAddressId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [coupon, setCoupon] = useState<string | null>(null);
+  const [method, setMethod] = useState<PaymentMethod>("ONLINE");
   const [quote, setQuote] = useState<QuoteResult | null>(null);
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,20 +48,26 @@ export function Checkout() {
   }, []);
 
   const loadQuote = useCallback(async (code: string | null) => {
-    setQuote(quoteResultSchema.parse(await api("/orders/quote", { method: "POST", body: { couponCode: code } })));
-  }, []);
+    setQuote(quoteResultSchema.parse(await api("/orders/quote", { method: "POST", body: { couponCode: code, paymentMethod: method } })));
+  }, [method]);
 
-  // The price summary follows the cart (and the coupon)
+  // The price summary follows the cart, the coupon and the payment method (COD adds a fee)
   useEffect(() => {
     if (!cart?.canCheckout) return;
     let cancelled = false;
-    api("/orders/quote", { method: "POST", body: { couponCode: coupon } })
-      .then((body) => !cancelled && setQuote(quoteResultSchema.parse(body)))
+    api("/orders/quote", { method: "POST", body: { couponCode: coupon, paymentMethod: method } })
+      .then((body) => {
+        if (cancelled) return;
+        const next = quoteResultSchema.parse(body);
+        // COD stopped being possible (a coupon removed, the cart grew past the limit): back to online
+        if (method === "COD" && !next.cod.available) setMethod("ONLINE");
+        else setQuote(next);
+      })
       .catch(() => !cancelled && setCoupon(null));   // the coupon stopped working (e.g. cart changed)
     return () => {
       cancelled = true;
     };
-  }, [cart, coupon]);
+  }, [cart, coupon, method]);
 
   if (cart && cart.lines.length === 0 && !placing) {
     return (
@@ -76,14 +83,14 @@ export function Checkout() {
     if (!address || !quote) return;
     setPlacing(true);
     setError(null);
-    const attempt = `${address.id}|${quote.couponCode ?? ""}|${quote.total}`;
+    const attempt = `${address.id}|${quote.couponCode ?? ""}|${quote.paymentMethod}|${quote.total}`;
     if (!keys.current.has(attempt)) keys.current.set(attempt, crypto.randomUUID());
     let number: string;
     try {
       const order = orderSchema.parse(await api("/orders", {
         method: "POST",
         headers: { "Idempotency-Key": keys.current.get(attempt)! },
-        body: { addressId: address.id, couponCode: quote.couponCode, expectedTotal: quote.total },
+        body: { addressId: address.id, couponCode: quote.couponCode, paymentMethod: quote.paymentMethod, expectedTotal: quote.total },
       }));
       number = order.number;
     } catch (err) {
@@ -98,6 +105,11 @@ export function Checkout() {
     }
 
     void reload();   // the ordered lines left the cart
+    // Cash on delivery: confirmed already, nothing to pay now
+    if (quote.paymentMethod === "COD") {
+      router.push(`/account/orders/${number}`);
+      return;
+    }
     try {
       const outcome = await payOrder(number);
       if (outcome === "cancelled") toast.show("Payment not finished. You can pay from your order page.", "error");
@@ -201,15 +213,30 @@ export function Checkout() {
           {step === 2 && quote && (
             <Card className="flex flex-col gap-5 p-5 sm:p-6">
               <h2 className="text-lg font-semibold">Payment</h2>
-              <p className="text-muted">
-                You&apos;ll pay <strong className="text-fg">{formatPrice(quote.total)}</strong> securely with Razorpay: UPI, cards, netbanking or wallets.
-                Your items are set aside for 30 minutes while you pay.
-              </p>
+              <div role="radiogroup" aria-label="How do you want to pay?" className="grid gap-3">
+                <PaymentOption
+                  checked={method === "ONLINE"}
+                  onSelect={() => setMethod("ONLINE")}
+                  Icon={CreditCard}
+                  title="Pay online now"
+                  text="UPI, cards, netbanking or wallets, securely with Razorpay. Your items are set aside for 30 minutes while you pay."
+                />
+                <PaymentOption
+                  checked={method === "COD"}
+                  onSelect={() => setMethod("COD")}
+                  disabled={!quote.cod.available}
+                  Icon={Banknote}
+                  title={`Cash on delivery (+${formatPrice(COD_FEE)})`}
+                  text={quote.cod.reason ?? "Pay the courier in cash when your order arrives."}
+                />
+              </div>
               {error && <p role="alert" className="text-sm text-danger">{error}</p>}
               <div className="flex gap-3">
                 <Button variant="ghost" disabled={placing} onClick={() => setStep(1)}>Back</Button>
                 <Button size="lg" loading={placing} onClick={place}>
-                  {!placing && <Lock className="size-4" aria-hidden />} Place order and pay {formatPrice(quote.total)}
+                  {quote.paymentMethod === "COD"
+                    ? <>Place order · pay {formatPrice(quote.total)} on delivery</>
+                    : <>{!placing && <Lock className="size-4" aria-hidden />} Place order and pay {formatPrice(quote.total)}</>}
                 </Button>
               </div>
             </Card>
@@ -222,6 +249,7 @@ export function Checkout() {
             <Row label={`Items (${cart?.itemCount ?? 0})`} value={formatPrice(quote?.subtotal ?? cart?.subtotal ?? 0)} />
             {quote && quote.discount > 0 && <Row label={`Coupon ${quote.couponCode}`} value={`−${formatPrice(quote.discount)}`} tone="text-success" />}
             <Row label="Delivery" value={quote ? (quote.shippingFee === 0 ? "Free" : formatPrice(quote.shippingFee)) : "…"} />
+            {quote && quote.codFee > 0 && <Row label="Cash on delivery fee" value={formatPrice(quote.codFee)} />}
             <div className="flex items-baseline justify-between border-t border-line pt-3">
               <span className="font-semibold">Total</span>
               <span className="text-xl font-semibold tabular-nums">{quote ? formatPrice(quote.total) : "…"}</span>
@@ -231,6 +259,22 @@ export function Checkout() {
         </aside>
       </div>
     </div>
+  );
+}
+
+// One way to pay, as a big radio card. A disabled option still shows WHY (its text says so).
+function PaymentOption({ checked, onSelect, disabled = false, Icon, title, text }: {
+  checked: boolean; onSelect: () => void; disabled?: boolean; Icon: typeof CreditCard; title: string; text: string;
+}) {
+  return (
+    <label className={cn("flex gap-3 rounded-xl border p-4", disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer", checked ? "border-brand bg-brand-soft" : "border-line hover:border-line-strong")}>
+      <input type="radio" name="payment" checked={checked} disabled={disabled} onChange={onSelect} className="mt-1 accent-brand" />
+      <Icon className="mt-0.5 size-5 shrink-0 text-muted" aria-hidden />
+      <span className="flex flex-col gap-0.5">
+        <span className="font-medium">{title}</span>
+        <span className="text-sm text-muted">{text}</span>
+      </span>
+    </label>
   );
 }
 

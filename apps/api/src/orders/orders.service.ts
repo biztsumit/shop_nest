@@ -7,17 +7,22 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  codUnavailableReason,
   computeTotals,
   type Order,
   type OrderAddress,
   type OrderStatus,
   type OrderSummary,
   type Page,
+  type PaymentMethod,
   type PlaceOrder,
   type QuoteResult,
 } from '@shop/shared';
 import { createHash } from 'node:crypto';
+import { ValidationFailedException } from '../common/validation.js';
 import type { Env } from '../config/env.js';
+import { EmailQueue } from '../email/email-queue.js';
+import { codOrderConfirmedMessage } from '../email/templates.js';
 import { Prisma, type Order as OrderRow, type OrderItem as OrderItemRow } from '../generated/prisma/client.js';
 import { CartService } from '../cart/cart.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -38,13 +43,16 @@ export class OrdersService {
     private readonly coupons: CouponsService,
     private readonly config: ConfigService<Env, true>,
     private readonly metrics: MetricsService,
+    private readonly emails: EmailQueue,
   ) {}
 
-  // What checkout would cost right now (the cart's buyable lines, a coupon, delivery)
-  async quote(userId: string, couponCode: string | null): Promise<QuoteResult> {
+  // What checkout would cost right now (the cart's buyable lines, a coupon, delivery, and the
+  // cash-on-delivery fee if chosen), and whether this shopper may pay on delivery at all
+  async quote(userId: string, couponCode: string | null, paymentMethod: PaymentMethod = 'ONLINE'): Promise<QuoteResult> {
     const cart = await this.cart.get(userId);
     const discount = couponCode ? (await this.coupons.check(this.prisma, userId, couponCode, cart.subtotal)).discount : 0;
-    return { ...computeTotals(cart.subtotal, discount), couponCode };
+    const reason = codUnavailableReason(computeTotals(cart.subtotal, discount, 'COD').total, await this.emailVerified(userId));
+    return { ...computeTotals(cart.subtotal, discount, paymentMethod), couponCode, paymentMethod, cod: { available: reason === null, reason } };
   }
 
   // PLACING AN ORDER. Everything below happens in ONE database transaction: either all of it
@@ -53,16 +61,24 @@ export class OrdersService {
   // Returns `replayed: true` when this Idempotency-Key was seen before: the SAME order comes
   // back, nothing new is created or charged.
   async place(userId: string, input: PlaceOrder, idempotencyKey: string): Promise<{ order: Order; replayed: boolean }> {
-    const requestHash = sha256(JSON.stringify([input.addressId, input.couponCode, input.expectedTotal ?? null]));
+    // (The payment method joins the fingerprint only for COD, so online orders' fingerprints stay
+    // exactly as they were before COD existed)
+    const requestHash = sha256(JSON.stringify([
+      input.addressId, input.couponCode, input.expectedTotal ?? null, ...(input.paymentMethod === 'COD' ? ['COD'] : []),
+    ]));
 
     const earlier = await this.findByKey(userId, idempotencyKey);
     if (earlier) return { order: replay(earlier, requestHash), replayed: true };
 
     try {
       const order = await this.prisma.$transaction((tx) => this.create(tx, userId, input, idempotencyKey, requestHash));
-      this.logger.log({ orderId: order.id, number: order.number, total: order.total }, 'Order placed');
+      this.logger.log({ orderId: order.id, number: order.number, total: order.total, paymentMethod: order.paymentMethod }, 'Order placed');
       this.metrics.ordersPlaced.inc();
-      return { order: toOrder(order), replayed: false };
+      const placed = toOrder(order);
+      // An online order is confirmed by email once PAID (PaymentsService); a COD order is
+      // confirmed now: there's no payment to wait for
+      if (order.paymentMethod === 'COD') await this.confirmCod(userId, placed);
+      return { order: placed, replayed: false };
     } catch (err) {
       // The same key arrived twice at the same moment: the second request waited at the order
       // INSERT (the unique index) until the first committed, then failed here. Answer with the
@@ -84,6 +100,9 @@ export class OrdersService {
   ): Promise<OrderWithItems> {
     const address = await tx.address.findFirst({ where: { id: input.addressId, userId } });
     if (!address) throw new NotFoundException('No such address');
+    const cod = input.paymentMethod === 'COD';
+    // Checked first (cheap); the order-total limit is checked once the total is known
+    if (cod && !(await this.emailVerified(userId, tx))) throw refuseCod(codUnavailableReason(0, false)!);
 
     // FIRST, claim the idempotency key: inserting the order row is what a duplicate request
     // collides with (see place()). Totals are filled in at the end, once they're known.
@@ -138,7 +157,9 @@ export class OrdersService {
 
     const subtotal = lines.reduce((sum, line) => sum + prices.get(line.variantId)! * line.quantity, 0);
     const discount = input.couponCode ? (await this.coupons.redeem(tx, userId, input.couponCode, subtotal, order.id)).discount : 0;
-    const totals = computeTotals(subtotal, discount);
+    const totals = computeTotals(subtotal, discount, input.paymentMethod);
+    const tooBig = cod ? codUnavailableReason(totals.total, true) : null;
+    if (tooBig) throw refuseCod(tooBig);
     if (input.expectedTotal !== undefined && input.expectedTotal !== totals.total) {
       throw new ConflictException('Prices have changed since you started checking out. Please review your order.');
     }
@@ -161,12 +182,29 @@ export class OrdersService {
     // Only the lines that were ordered: something added in another tab meanwhile stays
     await tx.cartItem.deleteMany({ where: { userId, id: { in: lines.map((l) => l.id) } } });
 
+    // Online: unpaid orders hold their stock for a while, then expire. COD: confirmed at once,
+    // nothing to wait for (it's paid when delivered)
     const minutes = this.config.get('ORDER_PAYMENT_MINUTES', { infer: true });
     return tx.order.update({
       where: { id: order.id },
-      data: { ...totals, couponCode: input.couponCode, expiresAt: new Date(Date.now() + minutes * 60_000) },
+      data: cod
+        ? { ...totals, couponCode: input.couponCode, paymentMethod: 'COD', status: 'CONFIRMED' }
+        : { ...totals, couponCode: input.couponCode, expiresAt: new Date(Date.now() + minutes * 60_000) },
       include: ORDER_INCLUDE,
     });
+  }
+
+  private async emailVerified(userId: string, db: Prisma.TransactionClient = this.prisma): Promise<boolean> {
+    const user = await db.user.findUnique({ where: { id: userId }, select: { emailVerifiedAt: true } });
+    return user?.emailVerifiedAt != null;
+  }
+
+  private async confirmCod(userId: string, order: Order): Promise<void> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true, name: true } });
+    const link = `${this.config.get('WEB_ORIGIN', { infer: true })}/account/orders/${order.number}`;
+    // The order stands even if the email can't be queued: the shopper sees it on screen
+    await this.emails.enqueue(codOrderConfirmedMessage(user.email, user.name, order, link))
+      .catch((err: unknown) => this.logger.error({ err, orderId: order.id }, 'Could not queue the COD confirmation email'));
   }
 
   // "My orders", newest first (ids are UUID v7: time-ordered)
@@ -187,11 +225,11 @@ export class OrdersService {
     return toOrder(order);
   }
 
-  // The shopper changed their mind before paying
+  // The shopper changed their mind: before paying online, or (cash on delivery) before it ships
   async cancel(userId: string, number: string): Promise<Order> {
     const order = await this.prisma.order.findFirst({ where: { number, userId } });
     if (!order) throw new NotFoundException('No such order');
-    if (!(await this.release(order.id, 'CANCELLED', ['PENDING_PAYMENT']))) {
+    if (!(await this.release(order.id, 'CANCELLED', ['PENDING_PAYMENT', 'CONFIRMED']))) {
       throw new ConflictException("This order can't be cancelled any more. If it's paid, contact us for a refund.");
     }
     return this.get(userId, number);
@@ -214,15 +252,15 @@ export class OrdersService {
     return expired;
   }
 
-  // Moves an order to CANCELLED or EXPIRED and puts its stock (and coupon use) back.
+  // Moves an order to CANCELLED, EXPIRED or RETURNED (a cash-on-delivery parcel sent back) and puts its stock (and coupon use) back.
   // The status change is a CLAIM: "only if it's still in one of `from`". If a payment arrives
   // at the same moment as the expiry job, exactly one of them wins; the stock is never
   // returned for an order that got paid, nor returned twice.
-  async release(orderId: string, to: 'CANCELLED' | 'EXPIRED', from: OrderStatus[], tx?: Prisma.TransactionClient): Promise<boolean> {
+  async release(orderId: string, to: 'CANCELLED' | 'EXPIRED' | 'RETURNED', from: OrderStatus[], tx?: Prisma.TransactionClient): Promise<boolean> {
     const run = async (db: Prisma.TransactionClient) => {
       const claimed = await db.order.updateMany({
         where: { id: orderId, status: { in: from } },
-        data: { status: to, ...(to === 'CANCELLED' ? { cancelledAt: new Date() } : {}) },
+        data: { status: to, ...(to === 'CANCELLED' ? { cancelledAt: new Date() } : to === 'RETURNED' ? { returnedAt: new Date() } : {}) },
       });
       if (claimed.count === 0) return false;
       await this.restock(db, orderId);
@@ -276,6 +314,9 @@ const replay = (order: OrderWithItems, requestHash: string): Order => {
   return toOrder(order);
 };
 
+// Cash on delivery not allowed: a problem with the `paymentMethod` field (checkout shows it there)
+const refuseCod = (message: string) => new ValidationFailedException([{ path: 'paymentMethod', message }]);
+
 const isUniqueViolation = (err: unknown, field: string): boolean =>
   err instanceof Prisma.PrismaClientKnownRequestError &&
   err.code === 'P2002' &&
@@ -287,6 +328,7 @@ export const toOrder = (o: OrderWithItems): Order => ({
   id: o.id,
   number: o.number,
   status: o.status,
+  paymentMethod: o.paymentMethod,
   items: o.items.map((i) => ({
     variantId: i.variantId,
     productSlug: i.productSlug,
@@ -302,6 +344,7 @@ export const toOrder = (o: OrderWithItems): Order => ({
   subtotal: o.subtotal,
   discount: o.discount,
   shippingFee: o.shippingFee,
+  codFee: o.codFee,
   total: o.total,
   couponCode: o.couponCode,
   createdAt: o.createdAt.toISOString(),
@@ -310,6 +353,7 @@ export const toOrder = (o: OrderWithItems): Order => ({
   shippedAt: iso(o.shippedAt),
   deliveredAt: iso(o.deliveredAt),
   cancelledAt: iso(o.cancelledAt),
+  returnedAt: iso(o.returnedAt),
 });
 
 const toSummary = (o: OrderWithItems): OrderSummary => ({

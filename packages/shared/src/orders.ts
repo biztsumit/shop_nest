@@ -8,19 +8,42 @@ import { addressSchema } from "./address.js";
 export const FREE_SHIPPING_FROM = 99_900;
 export const SHIPPING_FEE = 4_900;
 
-export type Totals = { subtotal: number; discount: number; shippingFee: number; total: number };
+// ---------- Cash on delivery ----------
+
+// ONLINE: paid with Razorpay before the order ships. COD: paid in cash to the courier.
+export const paymentMethodSchema = z.enum(["ONLINE", "COD"]);
+export type PaymentMethod = z.infer<typeof paymentMethodSchema>;
+
+// The courier charges the shop for collecting cash; COD orders pass it on
+export const COD_FEE = 4_900;
+// A big COD order refused at the door costs the shop shipping both ways: COD only up to this
+// total (fee included)
+export const COD_MAX_TOTAL = 500_000;
+
+export type Totals = { subtotal: number; discount: number; shippingFee: number; codFee: number; total: number };
 
 // ONE function, used by the API to charge and by the web app to show the same numbers
-export const computeTotals = (subtotal: number, discount = 0): Totals => {
+export const computeTotals = (subtotal: number, discount = 0, paymentMethod: PaymentMethod = "ONLINE"): Totals => {
   const discounted = subtotal - Math.min(discount, subtotal);
   const shippingFee = subtotal === 0 || discounted >= FREE_SHIPPING_FROM ? 0 : SHIPPING_FEE;
-  return { subtotal, discount: subtotal - discounted, shippingFee, total: discounted + shippingFee };
+  const codFee = paymentMethod === "COD" && subtotal > 0 ? COD_FEE : 0;
+  return { subtotal, discount: subtotal - discounted, shippingFee, codFee, total: discounted + shippingFee + codFee };
 };
+
+// Why this shopper can't pay on delivery for this total (null = they can). The API enforces it;
+// checkout shows the reason next to the option.
+export const codUnavailableReason = (totalWithFee: number, emailVerified: boolean): string | null =>
+  !emailVerified
+    ? "Confirm your email address to pay on delivery."
+    : totalWithFee > COD_MAX_TOTAL
+      ? `Pay on delivery is for orders up to ₹${(COD_MAX_TOTAL / 100).toLocaleString("en-IN")}. Please pay online.`
+      : null;
 
 export const totalsSchema = z.object({
   subtotal: z.number().int(),
   discount: z.number().int(),
   shippingFee: z.number().int(),
+  codFee: z.number().int(),
   total: z.number().int(),
 });
 
@@ -42,25 +65,34 @@ export const couponCodeSchema = z
 export const placeOrderSchema = z.object({
   addressId: z.uuid(),
   couponCode: couponCodeSchema.nullable().default(null),
+  paymentMethod: paymentMethodSchema.default("ONLINE"),
   // The total the shopper saw. If prices changed since, the order is refused (409) instead of
   // charging a different amount than the one on their screen.
   expectedTotal: z.number().int().min(0).optional(),
 });
 
 // POST /api/orders/quote: what checkout would cost right now
-export const quoteSchema = z.object({ couponCode: couponCodeSchema.nullable().default(null) });
+export const quoteSchema = z.object({
+  couponCode: couponCodeSchema.nullable().default(null),
+  paymentMethod: paymentMethodSchema.default("ONLINE"),
+});
 
 export const quoteResultSchema = totalsSchema.extend({
   couponCode: z.string().nullable(),   // the coupon that was applied
+  paymentMethod: paymentMethodSchema,
+  // Whether this shopper may pay on delivery for this cart, and if not, why
+  cod: z.object({ available: z.boolean(), reason: z.string().nullable() }),
 });
 
 // ---------- Orders ----------
 
 export const orderStatusSchema = z.enum([
   "PENDING_PAYMENT", // placed, stock set aside, waiting for payment
+  "CONFIRMED",       // cash on delivery: placed and ready to ship; paid when delivered
   "PAID",
   "SHIPPED",
   "DELIVERED",
+  "RETURNED",        // cash on delivery: refused at the door (or undeliverable) and sent back
   "CANCELLED",       // by the shopper (before paying) or the shop
   "EXPIRED",         // not paid in time: the stock went back on the shelf
   "REFUNDED",        // paid, then the money was returned in full
@@ -86,6 +118,7 @@ export const orderSchema = totalsSchema.extend({
   id: z.uuid(),
   number: z.string(),               // "SN000123": what the shopper quotes to support
   status: orderStatusSchema,
+  paymentMethod: paymentMethodSchema,
   items: z.array(orderItemSchema),
   shippingAddress: orderAddressSchema,
   couponCode: z.string().nullable(),
@@ -95,6 +128,7 @@ export const orderSchema = totalsSchema.extend({
   shippedAt: z.string().nullable(),
   deliveredAt: z.string().nullable(),
   cancelledAt: z.string().nullable(),
+  returnedAt: z.string().nullable(),
 });
 
 // One row in "My orders"

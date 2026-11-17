@@ -59,7 +59,7 @@ describe('Sales reports (e2e)', () => {
     await order(user.id, { total: 99999, paidAt: null, status: 'PENDING_PAYMENT' });  // never paid: not revenue
     await order(user.id, { total: 70000, paidAt: '2026-10-25T06:00:00Z', status: 'REFUNDED', name: 'Steel Mug' });   // paid, later refunded
     const payment = await prisma.payment.create({ data: { orderId: late.id, providerOrderId: 'order_x1', amount: 120000, status: 'PARTIALLY_REFUNDED', refundedAmount: 10000 } });
-    await prisma.refund.create({ data: { paymentId: payment.id, amount: 10000, reason: 'Late', status: 'PROCESSED', createdAt: new Date('2026-10-27T05:00:00Z') } });
+    await prisma.refund.create({ data: { orderId: late.id, paymentId: payment.id, amount: 10000, reason: 'Late', status: 'PROCESSED', createdAt: new Date('2026-10-27T05:00:00Z') } });
 
     const report = salesReportSchema.parse(await app.get(AdminReportsService).sales(7, NOW));
     expect(report).toMatchObject({ days: 7, from: '2026-10-21', to: '2026-10-27' });
@@ -94,7 +94,7 @@ describe('Sales reports (e2e)', () => {
     expect(csv.headers['content-type']).toMatch(/text\/csv/);
     expect(csv.headers['content-disposition']).toBe('attachment; filename="orders-last-7-days.csv"');
     const lines = csv.text.replace(/^﻿/, '').trim().split('\r\n');
-    expect(lines[0]).toBe('order,placed_ist,paid_ist,status,customer,email,items,subtotal,discount,delivery,total,refunded,coupon');
+    expect(lines[0]).toBe('order,placed_ist,paid_ist,status,customer,email,items,subtotal,discount,delivery,cod_fee,total,refunded,coupon');
     // The formula-looking name is made plain text (leading ') and quoted (it holds quotes)
     expect(lines[1]).toContain(`"'=HYPERLINK(""http://evil.example"")"`);
     expect(lines[1]).toContain(',599.00,0.00,');

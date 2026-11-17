@@ -15,7 +15,7 @@ import { AdminHeader } from "../admin-shell";
 
 const ordersPage = pageSchema(adminOrderSummarySchema);
 const STATUSES: Array<[OrderStatus | "", string]> = [
-  ["", "All"], ["PAID", "To ship"], ["SHIPPED", "Shipped"], ["PENDING_PAYMENT", "Awaiting payment"], ["DELIVERED", "Delivered"], ["REFUNDED", "Refunded"], ["CANCELLED", "Cancelled"], ["EXPIRED", "Expired"],
+  ["", "All"], ["PAID", "To ship"], ["CONFIRMED", "To ship (COD)"], ["SHIPPED", "Shipped"], ["PENDING_PAYMENT", "Awaiting payment"], ["DELIVERED", "Delivered"], ["REFUNDED", "Refunded"], ["RETURNED", "Returned"], ["CANCELLED", "Cancelled"], ["EXPIRED", "Expired"],
 ];
 
 export default function AdminOrdersPage() {

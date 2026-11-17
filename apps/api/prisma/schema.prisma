@@ -90,22 +90,22 @@ model Product {
 // What is actually bought: one size/colour combination of a product, with its own price and stock.
 // A product without options has exactly one variant with options {}.
 model ProductVariant {
-  id             String      @id @default(uuid(7)) @db.Uuid
-  productId      String      @map("product_id") @db.Uuid
-  product        Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
-  sku            String?     @unique @db.VarChar(64) // the shop's own stock code, optional
+  id             String       @id @default(uuid(7)) @db.Uuid
+  productId      String       @map("product_id") @db.Uuid
+  product        Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku            String?      @unique @db.VarChar(64) // the shop's own stock code, optional
   // {"size": "M", "colour": "Black"}
-  options        Json        @default("{}")
+  options        Json         @default("{}")
   // The same options as text in a fixed order ("colour=Black;size=M"), so the database can
   // refuse two variants of one product with identical options (JSON can't be UNIQUE in Prisma)
-  optionsKey     String      @default("") @map("options_key") @db.VarChar(255)
+  optionsKey     String       @default("") @map("options_key") @db.VarChar(255)
   price          Int // paise
   // The "was" price for sales (strikethrough ₹999 → ₹699). Must be higher than price.
-  compareAtPrice Int?        @map("compare_at_price")
-  stock          Int         @default(0)
-  position       Int         @default(0) // display order on the product page
-  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  compareAtPrice Int?         @map("compare_at_price")
+  stock          Int          @default(0)
+  position       Int          @default(0) // display order on the product page
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
   cartItems      CartItem[]
   orderItems     OrderItem[]
   stockAlerts    StockAlert[]
@@ -261,14 +261,23 @@ model Address {
 
 enum OrderStatus {
   PENDING_PAYMENT
+  CONFIRMED // cash on delivery: ready to ship, paid when delivered
   PAID
   SHIPPED
   DELIVERED
+  RETURNED // cash on delivery: refused at the door or undeliverable; stock back on sale
   CANCELLED
   EXPIRED
   REFUNDED
 
   @@map("order_status")
+}
+
+enum PaymentMethod {
+  ONLINE // Razorpay, before shipping
+  COD // cash to the courier, on delivery
+
+  @@map("payment_method")
 }
 
 // An order is a RECORD of what happened: names, prices and the address are COPIED in, so
@@ -287,10 +296,13 @@ model Order {
   // A fingerprint of the request that used the key: the key can't be reused for a different one
   requestHash      String            @map("request_hash") @db.Char(64)
   shippingAddress  Json              @map("shipping_address")
-  // Paise. total = subtotal - discount + shipping_fee (CHECK orders_total_adds_up)
+  paymentMethod    PaymentMethod     @default(ONLINE) @map("payment_method")
+  // Paise. total = subtotal - discount + shipping_fee + cod_fee (CHECK orders_total_adds_up);
+  // cod_fee is 0 unless paid on delivery (CHECK orders_cod_fee_only_for_cod)
   subtotal         Int
   discount         Int               @default(0)
   shippingFee      Int               @map("shipping_fee")
+  codFee           Int               @default(0) @map("cod_fee")
   total            Int
   couponCode       String?           @map("coupon_code") @db.VarChar(30)
   // Pay before this, or the order expires and its stock goes back on sale
@@ -299,11 +311,13 @@ model Order {
   shippedAt        DateTime?         @map("shipped_at") @db.Timestamptz(3)
   deliveredAt      DateTime?         @map("delivered_at") @db.Timestamptz(3)
   cancelledAt      DateTime?         @map("cancelled_at") @db.Timestamptz(3)
+  returnedAt       DateTime?         @map("returned_at") @db.Timestamptz(3)
   items            OrderItem[]
   createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
   couponRedemption CouponRedemption?
   payment          Payment?
+  refunds          Refund[]
 
   @@unique([userId, idempotencyKey])
   // "My orders", newest first
@@ -465,11 +479,18 @@ enum RefundStatus {
   @@map("refund_status")
 }
 
+// Money given back for an order. Two kinds (CHECK refunds_online_or_cash):
+//   online: through Razorpay, against the order's payment (payment_id set, reference null)
+//   cash on delivery: paid back by the shop outside the site, e.g. by UPI or bank transfer, and
+//   only RECORDED here (payment_id null, reference = the UPI/bank reference; PROCESSED at once)
 model Refund {
   id               String       @id @default(uuid(7)) @db.Uuid
-  paymentId        String       @map("payment_id") @db.Uuid
-  payment          Payment      @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  orderId          String       @map("order_id") @db.Uuid
+  order            Order        @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  paymentId        String?      @map("payment_id") @db.Uuid
+  payment          Payment?     @relation(fields: [paymentId], references: [id], onDelete: Restrict)
   providerRefundId String?      @unique @map("provider_refund_id") @db.VarChar(64) // "rfnd_..."
+  reference        String?      @db.VarChar(100) // cash on delivery: how it was paid back
   amount           Int // paise
   status           RefundStatus @default(PENDING)
   reason           String       @db.VarChar(200)
@@ -478,6 +499,7 @@ model Refund {
   createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  @@index([orderId])
   @@index([paymentId])
   @@map("refunds")
 }

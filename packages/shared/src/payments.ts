@@ -30,6 +30,9 @@ export const createRefundSchema = z.object({
   reason: z.string().trim().min(1, "is required").max(200),
   // Put the items back on sale (returned goods). Only with a full refund.
   restock: z.boolean().default(false),
+  // Cash-on-delivery orders only, and required for them: the shop pays these back itself (UPI,
+  // bank transfer) and records how, e.g. the UPI reference number
+  reference: z.string().trim().min(1, "is required").max(100).optional(),
 });
 
 export const refundStatusSchema = z.enum(["PENDING", "PROCESSED", "FAILED"]);
@@ -39,6 +42,8 @@ export const refundSchema = z.object({
   amount: z.number().int(),
   status: refundStatusSchema,
   reason: z.string(),
+  // Cash on delivery: how the shop paid it back. null = an online refund, through Razorpay
+  reference: z.string().nullable(),
   createdAt: z.string(),
 });
 

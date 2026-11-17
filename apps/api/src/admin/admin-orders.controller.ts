@@ -33,6 +33,13 @@ export class AdminOrdersController {
     return this.orders.move(number, 'deliver', admin.id);
   }
 
+  // A cash-on-delivery parcel refused at the door (or undeliverable): stock back on sale
+  @Post(':number/return')
+  @HttpCode(200)
+  markReturned(@CurrentUser() admin: AuthUser, @Param('number', { schema: orderNumberSchema }) number: string): Promise<AdminOrder> {
+    return this.orders.markReturned(number, admin.id);
+  }
+
   @Post(':number/cancel')
   @HttpCode(200)
   cancel(@CurrentUser() admin: AuthUser, @Param('number', { schema: orderNumberSchema }) number: string): Promise<AdminOrder> {

@@ -75,6 +75,20 @@ export const orderConfirmedMessage = (to: string, name: string, order: OrderForE
   text: `Thank you, ${name}!\n\nWe've received your payment for order ${order.number}.\n\n${itemLines(order)}\nTotal paid: ${formatPrice(order.total)}\n\nView your order: ${link}\n`,
 });
 
+// Cash on delivery: confirmed when placed; the amount is paid to the courier
+export const codOrderConfirmedMessage = (to: string, name: string, order: OrderForEmail, link: string): EmailMessage => ({
+  to,
+  subject: `Order ${order.number} confirmed (cash on delivery)`,
+  html: layout(
+    `Thank you, ${name}!`,
+    `<p>Order <strong>${escape(order.number)}</strong> is confirmed and we're getting it ready. Please keep the amount below ready for the courier.</p>
+     <table style="width:100%;border-collapse:collapse;font-size:14px">${itemRows(order)}
+       <tr><td style="padding-top:12px;font-weight:600">To pay on delivery</td><td style="padding-top:12px;text-align:right;font-weight:600">${formatPrice(order.total)}</td></tr>
+     </table>${button(link, 'View your order')}`,
+  ),
+  text: `Thank you, ${name}!\n\nOrder ${order.number} is confirmed and we're getting it ready. Please keep the amount below ready for the courier.\n\n${itemLines(order)}\nTo pay on delivery: ${formatPrice(order.total)}\n\nView your order: ${link}\n`,
+});
+
 export const orderShippedMessage = (to: string, name: string, order: OrderForEmail, link: string): EmailMessage => ({
   to,
   subject: `Order ${order.number} is on its way`,
@@ -97,16 +111,35 @@ export const orderCancelledMessage = (to: string, name: string, order: OrderForE
   text: `Hi ${name},\n\nOrder ${order.number} was cancelled. It was never paid, so no money was taken.\nKeep shopping: ${link}\n`,
 });
 
-export const orderRefundedMessage = (to: string, name: string, order: OrderForEmail, amount: number, reason: string): EmailMessage => ({
+// A cash-on-delivery parcel that came back to the shop (refused, or couldn't be delivered)
+export const orderReturnedMessage = (to: string, name: string, order: OrderForEmail, link: string): EmailMessage => ({
   to,
-  subject: `Refund for order ${order.number}`,
+  subject: `Order ${order.number} came back to us`,
   html: layout(
     `Hi ${name},`,
-    `<p>We've refunded <strong>${formatPrice(amount)}</strong> for order <strong>${escape(order.number)}</strong>. ${escape(reason)}</p>
-     <p>Refunds usually reach your account in 5–7 working days.</p>`,
+    `<p>The courier brought order <strong>${escape(order.number)}</strong> back to us, so we've closed it. It was cash on delivery and never paid, so you owe nothing.</p>
+     <p>If that wasn't what you meant to happen, you're welcome to order again.</p>${button(link, 'Keep shopping')}`,
   ),
-  text: `Hi ${name},\n\nWe've refunded ${formatPrice(amount)} for order ${order.number}. ${reason}\nRefunds usually reach your account in 5-7 working days.\n`,
+  text: `Hi ${name},\n\nThe courier brought order ${order.number} back to us, so we've closed it. It was cash on delivery and never paid, so you owe nothing.\nIf that wasn't what you meant to happen, you're welcome to order again: ${link}\n`,
 });
+
+// `reference`: set for a cash-on-delivery order, which the shop paid back itself (UPI, bank
+// transfer). null = an online refund, on its way back through Razorpay.
+export const orderRefundedMessage = (to: string, name: string, order: OrderForEmail, amount: number, reason: string, reference: string | null = null): EmailMessage => {
+  const how = reference
+    ? `We've sent it to you directly (reference: ${reference}).`
+    : 'Refunds usually reach your account in 5–7 working days.';
+  return {
+    to,
+    subject: `Refund for order ${order.number}`,
+    html: layout(
+      `Hi ${name},`,
+      `<p>We've refunded <strong>${formatPrice(amount)}</strong> for order <strong>${escape(order.number)}</strong>. ${escape(reason)}</p>
+       <p>${escape(how)}</p>`,
+    ),
+    text: `Hi ${name},\n\nWe've refunded ${formatPrice(amount)} for order ${order.number}. ${reason}\n${how.replace('–', '-')}\n`,
+  };
+};
 
 // A back-in-stock alert. `item` is the product and its options: "Classic Tee (size M, black)"
 export const backInStockMessage = (to: string, name: string, item: string, price: number, link: string): EmailMessage => ({

@@ -16,8 +16,8 @@ import { useLoad } from "@/lib/use-load";
 import { AdminHeader } from "./admin-shell";
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
-  PENDING_PAYMENT: "Awaiting payment", PAID: "To ship", SHIPPED: "Shipped", DELIVERED: "Delivered",
-  CANCELLED: "Cancelled", EXPIRED: "Expired", REFUNDED: "Refunded",
+  PENDING_PAYMENT: "Awaiting payment", CONFIRMED: "To ship (COD)", PAID: "To ship", SHIPPED: "Shipped", DELIVERED: "Delivered",
+  RETURNED: "Returned", CANCELLED: "Cancelled", EXPIRED: "Expired", REFUNDED: "Refunded",
 };
 
 // "27 Oct" for a day like "2026-10-27"
