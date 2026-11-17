@@ -61,7 +61,7 @@ describe('Audit log (e2e)', () => {
   it('a save that changes nothing, or that fails, leaves no record', async () => {
     const boss = await admin();
     const product = adminProductDetailSchema.parse((await boss.as('post', '/admin/products', newProduct).expect(201)).body);
-    await boss.as('post', '/admin/products', { ...newProduct, slug: 'other-kurta' }).expect(201);
+    await boss.as('post', '/admin/products', { ...newProduct, slug: 'other-kurta', variants: [{ ...newProduct.variants[0]!, sku: 'OTHER-M' }] }).expect(201);
     await boss.as('patch', `/admin/products/${product.id}`, { name: 'Linen Kurta' }).expect(200);
     // A slug that's taken: the update rolls back, and its record with it
     await boss.as('patch', `/admin/products/${product.id}`, { name: 'Renamed', slug: 'other-kurta' }).expect(409);
