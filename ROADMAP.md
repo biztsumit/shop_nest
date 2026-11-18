@@ -53,5 +53,5 @@ Built one step at a time. Each step: working code, tests, and what's new explain
 - [x] 11.2 Abandoned-cart reminders: one email per cart left for a day (confirmed emails, daytime only), with a one-click unsubscribe link and an account setting
 - [x] 11.3 Cash on delivery: ₹49 fee, orders up to ₹5,000, confirmed emails only; CONFIRMED → shipped → delivered (paid when delivered); parcels refused at the door are marked returned (stock back); refunds paid outside the shop are recorded with a reference
 - [x] 11.4 GST invoice PDF for paid orders: HSN code and GST rate per product; issued with the payment (COD: on delivery), numbered per financial year with no gaps; CGST+SGST or IGST by delivery state; append-only
-- [ ] 11.5 Shipping integration (tracking numbers, status by webhook)
+- [x] 11.5 Shipping with Shiprocket: book from the order page (courier, tracking number, label, pickup; resumable, one active booking per order), cancel before pickup; tracking by webhook and a 30-minute check moves the order on (picked up → shipped, delivered → delivered/paid for COD, back at the shop → returned for COD); other couriers' tracking numbers typed by hand
 - [ ] 11.6 Better search: typo-tolerant results and autocomplete

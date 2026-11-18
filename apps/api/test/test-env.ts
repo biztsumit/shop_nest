@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { parse } from 'dotenv';
 import { FAKE_KEY_ID, FAKE_KEY_SECRET, FAKE_RAZORPAY_PORT, FAKE_WEBHOOK_SECRET } from './support/fake-razorpay.js';
+import { FAKE_SHIPROCKET_EMAIL, FAKE_SHIPROCKET_PASSWORD, FAKE_SHIPROCKET_PORT, FAKE_SHIPROCKET_WEBHOOK_TOKEN } from './support/fake-shiprocket.js';
 
 export const CLOUDINARY_TEST_SECRET = 'test-only-cloudinary-secret';
 export const TEST_SELLER = { legalName: 'Shop Nest Test Private Limited', gstin: '29ABCDE1234F1ZW', address: '12 MG Road, Bengaluru 560001' };
@@ -45,6 +46,11 @@ export const loadTestEnv = (): Record<string, string> => {
     SHOP_LEGAL_NAME: TEST_SELLER.legalName,
     SHOP_GSTIN: TEST_SELLER.gstin,
     SHOP_ADDRESS: TEST_SELLER.address,
+    // Parcels go to the fake Shiprocket server global-setup.ts starts
+    SHIPROCKET_EMAIL: FAKE_SHIPROCKET_EMAIL,
+    SHIPROCKET_PASSWORD: FAKE_SHIPROCKET_PASSWORD,
+    SHIPROCKET_WEBHOOK_TOKEN: FAKE_SHIPROCKET_WEBHOOK_TOKEN,
+    SHIPROCKET_API_URL: `http://127.0.0.1:${FAKE_SHIPROCKET_PORT}`,
   };
 };
 

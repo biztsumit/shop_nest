@@ -17,5 +17,7 @@ import { AdminReviewsController } from './admin-reviews.controller.js';
   imports: [AuthModule, OrdersModule],
   controllers: [AdminCatalogController, AdminOrdersController, AdminCouponsController, AdminReviewsController, AdminReportsController],
   providers: [AdminCatalogService, AdminOrdersService, AdminCouponsService, AdminReportsService],
+  // Shipping moves orders on when the courier reports progress
+  exports: [AdminOrdersService],
 })
 export class AdminModule {}

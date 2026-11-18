@@ -17,6 +17,8 @@ export const AUDIT_ACTIONS = [
   "order.deliver",
   "order.cancel",
   "order.return",
+  "shipment.book",
+  "shipment.cancel",
   "refund.create",
   "coupon.create",
   "coupon.update",

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { addressSchema } from "./address.js";
+import { shipmentSchema } from "./shipping.js";
 
 // ---------- Prices at checkout ----------
 
@@ -129,6 +130,8 @@ export const orderSchema = totalsSchema.extend({
   deliveredAt: z.string().nullable(),
   cancelledAt: z.string().nullable(),
   returnedAt: z.string().nullable(),
+  // The parcel: courier, tracking number and its journey (null until it's booked or shipped)
+  shipment: shipmentSchema.nullable(),
 });
 
 // One row in "My orders"

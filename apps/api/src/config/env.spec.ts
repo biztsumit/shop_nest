@@ -25,6 +25,8 @@ describe('validateEnv', () => {
       ORDER_PAYMENT_MINUTES: 30,
       RAZORPAY_API_URL: 'https://api.razorpay.com',
       INVOICE_PREFIX: 'INV',
+      SHIPROCKET_PICKUP_LOCATION: 'Primary',
+      SHIPROCKET_API_URL: 'https://apiv2.shiprocket.in',
       SENTRY_TRACES_SAMPLE_RATE: 0.1,
       LOG_LEVEL: 'info',
       RATE_LIMIT_PER_MINUTE: 120,
@@ -37,6 +39,12 @@ describe('validateEnv', () => {
     expect(validateEnv({ ...valid, ...seller }).SHOP_GSTIN).toBe('29ABCDE1234F1ZW');   // upper-cased
     expect(() => validateEnv({ ...valid, SHOP_GSTIN: seller.SHOP_GSTIN })).toThrow(/set all three or none/);
     expect(() => validateEnv({ ...valid, ...seller, SHOP_GSTIN: '29ABCDE1234F1ZX' })).toThrow(/SHOP_GSTIN: must be a valid 15-character GSTIN/);
+  });
+
+  it('takes the email and password of the Shiprocket API user together', () => {
+    expect(validateEnv({ ...valid, SHIPROCKET_EMAIL: 'api@shop.in', SHIPROCKET_PASSWORD: 'p4ss' }).SHIPROCKET_EMAIL).toBe('api@shop.in');
+    expect(() => validateEnv({ ...valid, SHIPROCKET_EMAIL: 'api@shop.in' })).toThrow(/set both or neither/);
+    expect(() => validateEnv({ ...valid, SHIPROCKET_WEBHOOK_TOKEN: 'short' })).toThrow(/SHIPROCKET_WEBHOOK_TOKEN: must be at least 16/);
   });
 
   it('refuses a short JWT secret, which could be guessed', () => {

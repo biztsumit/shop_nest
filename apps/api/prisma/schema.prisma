@@ -323,6 +323,7 @@ model Order {
   payment          Payment?
   refunds          Refund[]
   invoice          Invoice?
+  shipments        Shipment[]
 
   @@unique([userId, idempotencyKey])
   // "My orders", newest first
@@ -602,4 +603,61 @@ model InvoiceCounter {
   last          Int
 
   @@map("invoice_counters")
+}
+
+enum ShipmentProvider {
+  SHIPROCKET // booked through Shiprocket's API; tracking arrives by webhook
+  MANUAL // sent another way: the admin typed the courier and tracking number
+
+  @@map("shipment_provider")
+}
+
+// A parcel for an order. An order has at most ONE active shipment (cancelled_at IS NULL: a
+// partial unique index in the migration); a cancelled booking stays here as history.
+model Shipment {
+  id                 String           @id @default(uuid(7)) @db.Uuid
+  orderId            String           @map("order_id") @db.Uuid
+  order              Order            @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  provider           ShipmentProvider
+  // Shiprocket's ids for its order and its shipment. Null while the booking is being made
+  // (the row is written FIRST, as a claim, so two clicks can't book two parcels) and for MANUAL.
+  providerOrderId    String?          @map("provider_order_id") @db.VarChar(30)
+  providerShipmentId String?          @map("provider_shipment_id") @db.VarChar(30)
+  // The courier's tracking number (AWB, "air waybill") and the courier carrying it
+  awb                String?          @db.VarChar(40)
+  courierName        String?          @map("courier_name") @db.VarChar(100)
+  trackingUrl        String?          @map("tracking_url") @db.VarChar(300)
+  // The shipping label to print and stick on the parcel (a PDF on Shiprocket's servers)
+  labelUrl           String?          @map("label_url") @db.VarChar(500)
+  // The courier's latest word, in capitals: "BOOKING", "AWB ASSIGNED", "IN TRANSIT", "DELIVERED"
+  status             String           @db.VarChar(60)
+  statusAt           DateTime         @map("status_at") @db.Timestamptz(3)
+  pickupRequestedAt  DateTime?        @map("pickup_requested_at") @db.Timestamptz(3)
+  // When the tracking job last asked the courier (in case a webhook went missing)
+  checkedAt          DateTime?        @map("checked_at") @db.Timestamptz(3)
+  cancelledAt        DateTime?        @map("cancelled_at") @db.Timestamptz(3)
+  events             ShipmentEvent[]
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([orderId])
+  // Webhooks find the parcel by its tracking number
+  @@index([awb])
+  @@map("shipments")
+}
+
+// One step of a parcel's journey ("Arrived at Pune hub"). The same step reported twice (webhook
+// and tracking job, or a webhook sent again) is stored once.
+model ShipmentEvent {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  shipmentId String   @map("shipment_id") @db.Uuid
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  status     String   @db.VarChar(60)
+  activity   String   @db.VarChar(300)
+  location   String   @default("") @db.VarChar(150)
+  at         DateTime @db.Timestamptz(3)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([shipmentId, at, status])
+  @@map("shipment_events")
 }

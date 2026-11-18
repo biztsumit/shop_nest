@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { AddressLines } from "@/components/address-form";
 import { OrderStatusBadge, OrderTimeline } from "@/components/order-status";
+import { ShipmentTracking } from "@/components/shipment-tracking";
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -161,6 +162,13 @@ export function OrderView({ number }: { number: string }) {
             <h2 className="mb-4 font-semibold">Progress</h2>
             <OrderTimeline order={order} />
           </Card>
+          {/* Once the courier has a tracking number for it */}
+          {order.shipment?.awb && (
+            <Card className="flex flex-col gap-3 p-5">
+              <h2 className="font-semibold">Your parcel</h2>
+              <ShipmentTracking shipment={order.shipment} />
+            </Card>
+          )}
           <Card className="flex flex-col gap-2 p-5">
             <h2 className="font-semibold">Delivering to</h2>
             <AddressLines address={order.shippingAddress} />

@@ -19,6 +19,7 @@ import { MaintenanceModule } from './maintenance/maintenance.module.js';
 import { MetricsModule } from './metrics/metrics.module.js';
 import { OrdersModule } from './orders/orders.module.js';
 import { PaymentsModule } from './payments/payments.module.js';
+import { ShippingModule } from './shipping/shipping.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ReviewsModule } from './reviews/reviews.module.js';
 import { StockAlertsModule } from './stock-alerts/stock-alerts.module.js';
@@ -64,6 +65,7 @@ import { WishlistModule } from './wishlist/wishlist.module.js';
     CartRemindersModule,
     ReviewsModule,
     PaymentsModule,
+    ShippingModule,
     MaintenanceModule,
     AdminModule,
     UploadsModule,

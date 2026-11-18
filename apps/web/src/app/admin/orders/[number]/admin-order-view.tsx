@@ -1,13 +1,14 @@
 "use client";
 
-import { adminOrderSchema, formatPrice, parseRupees, type AdminOrder } from "@shop/shared";
-import { CheckCheck, FileDown, Truck, Undo2, XCircle } from "lucide-react";
+import { adminOrderSchema, DEFAULT_PACKAGE, formatPrice, parseRupees, type AdminOrder } from "@shop/shared";
+import { CheckCheck, FileDown, PackageCheck, Printer, Truck, Undo2, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { AddressLines } from "@/components/address-form";
 import { OrderStatusBadge, OrderTimeline } from "@/components/order-status";
+import { ShipmentTracking } from "@/components/shipment-tracking";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonStyles } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { TextField } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
@@ -111,6 +112,7 @@ export function AdminOrderView({ number }: { number: string }) {
             <h2 className="font-semibold">Ship to</h2>
             <AddressLines address={order.shippingAddress} />
           </Card>
+          <Shipping order={order} onChange={setData} />
           <Card className="p-5">
             <h2 className="mb-4 font-semibold">Progress</h2>
             <OrderTimeline order={order} />
@@ -118,6 +120,99 @@ export function AdminOrderView({ number }: { number: string }) {
         </div>
       </div>
     </div>
+  );
+}
+
+// The parcel: book it with Shiprocket (or record another courier's tracking number), print its
+// label, follow it, or call the booking off before the courier picks it up
+function Shipping({ order, onChange }: { order: AdminOrder; onChange: (order: AdminOrder) => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState<"book" | "cancel" | "manual" | null>(null);
+  const shipment = order.shipment;
+  const ready = order.status === "PAID" || order.status === "CONFIRMED";
+  if (!shipment && !ready) return null;
+
+  const send = async (kind: "book" | "cancel" | "manual", path: string, method: "POST" | "DELETE", body: object | undefined, done: string) => {
+    setBusy(kind);
+    try {
+      onChange(adminOrderSchema.parse(await api(path, { method, ...(body && { body }) })));
+      toast.show(done);
+    } catch (err) {
+      toast.show(errorMessage(err), "error");
+    } finally {
+      setBusy(null);
+    }
+  };
+  const book = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const f = Object.fromEntries(new FormData(e.currentTarget)) as Record<string, string>;
+    const pkg = { weightGrams: Number(f.weightGrams), lengthCm: Number(f.lengthCm), breadthCm: Number(f.breadthCm), heightCm: Number(f.heightCm) };
+    void send("book", `/admin/orders/${order.number}/shipment`, "POST", pkg, "Booked with Shiprocket");
+  };
+  const manual = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const f = Object.fromEntries(new FormData(e.currentTarget)) as Record<string, string>;
+    void send("manual", `/admin/orders/${order.number}/ship`, "POST", { courierName: f.courierName, trackingNumber: f.trackingNumber }, "Marked as shipped; the customer was emailed the tracking number");
+  };
+  const cancel = () => {
+    if (!confirm("Cancel this shipment with Shiprocket? You can book it again afterwards.")) return;
+    void send("cancel", `/admin/orders/${order.number}/shipment`, "DELETE", undefined, "Shipment cancelled");
+  };
+
+  // A Shiprocket booking that stopped partway (no courier yet, no label, no pickup)
+  const missing = shipment?.provider === "SHIPROCKET" && ready
+    ? [!shipment.awb && "a courier", !shipment.labelUrl && "the label", !shipment.pickupRequestedAt && "a pickup"].filter(Boolean)
+    : [];
+
+  return (
+    <Card className="flex flex-col gap-4 p-5">
+      <h2 className="font-semibold">Shipping</h2>
+      {shipment ? (
+        <>
+          <ShipmentTracking shipment={shipment} limit={5} />
+          {shipment.pickupRequestedAt && ready && <p className="text-sm text-muted">Pickup requested {formatDateTime(shipment.pickupRequestedAt)}. The order moves to shipped when the courier collects it.</p>}
+          {missing.length > 0 && (
+            <div className="flex flex-col gap-2 rounded-lg bg-warning-soft p-3 text-sm">
+              <span>Booking not finished: still needs {missing.join(", ")}.</span>
+              <Button size="sm" className="w-fit" loading={busy === "book"} onClick={() => send("book", `/admin/orders/${order.number}/shipment`, "POST", DEFAULT_PACKAGE, "Booking finished")}>Try again</Button>
+            </div>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {shipment.labelUrl && (
+              <a href={shipment.labelUrl} target="_blank" rel="noopener noreferrer" className={buttonStyles({ variant: "secondary", size: "sm" })}>
+                <Printer className="size-4" aria-hidden /> Print label
+              </a>
+            )}
+            {shipment.provider === "SHIPROCKET" && ready && (
+              <Button size="sm" variant="ghost" loading={busy === "cancel"} onClick={cancel}>Cancel shipment</Button>
+            )}
+          </div>
+        </>
+      ) : (
+        <>
+          {order.shiprocketEnabled ? (
+            <form onSubmit={book} className="grid grid-cols-2 gap-3">
+              <p className="col-span-2 text-sm text-muted">The parcel&apos;s packed size and weight (the courier charges by these).</p>
+              <TextField label="Weight (g)" name="weightGrams" type="number" min={10} max={50000} required defaultValue={DEFAULT_PACKAGE.weightGrams} />
+              <TextField label="Length (cm)" name="lengthCm" type="number" min={1} max={200} required defaultValue={DEFAULT_PACKAGE.lengthCm} />
+              <TextField label="Breadth (cm)" name="breadthCm" type="number" min={1} max={200} required defaultValue={DEFAULT_PACKAGE.breadthCm} />
+              <TextField label="Height (cm)" name="heightCm" type="number" min={1} max={200} required defaultValue={DEFAULT_PACKAGE.heightCm} />
+              <Button type="submit" className="col-span-2 w-fit" loading={busy === "book"}><PackageCheck className="size-4" aria-hidden /> Book with Shiprocket</Button>
+            </form>
+          ) : (
+            <p className="text-sm text-muted">Shiprocket isn&apos;t set up, so parcels are booked outside the shop. Add the tracking number below when you send it.</p>
+          )}
+          <details className="text-sm" open={!order.shiprocketEnabled}>
+            <summary className="cursor-pointer text-muted">Sent with another courier?</summary>
+            <form onSubmit={manual} className="mt-3 flex flex-col gap-3">
+              <TextField label="Courier" name="courierName" required maxLength={100} placeholder="India Post" />
+              <TextField label="Tracking number" name="trackingNumber" required maxLength={40} pattern="[A-Za-z0-9_\-]+" placeholder="EE123456789IN" />
+              <Button type="submit" variant="secondary" className="w-fit" loading={busy === "manual"}><Truck className="size-4" aria-hidden /> Mark shipped</Button>
+            </form>
+          </details>
+        </>
+      )}
+    </Card>
   );
 }
 

@@ -84,6 +84,19 @@ const envSchema = z
     // Starts every invoice number: INV → INV2627-000001 (GST allows 16 characters in all)
     INVOICE_PREFIX: z.string().regex(/^[A-Z]{1,4}$/, 'must be 1 to 4 capital letters').default('INV'),
 
+    // ---------- Shipping (Shiprocket) ----------
+    // An API user from the Shiprocket panel (Settings → API → Configure → Create an API user: its
+    // own email and password, not your login). Without them, admins mark orders shipped by hand.
+    SHIPROCKET_EMAIL: z.preprocess(emptyToUndefined, z.email().optional()),
+    SHIPROCKET_PASSWORD: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
+    // The nickname of the pickup address in the panel (Settings → Pickup Addresses)
+    SHIPROCKET_PICKUP_LOCATION: z.preprocess(emptyToUndefined, z.string().trim().min(1).max(50).default('Primary')),
+    // Shiprocket sends it as the x-api-key header of every tracking webhook (Settings → API →
+    // Webhooks). Without it, tracking still updates every 30 minutes by asking Shiprocket.
+    SHIPROCKET_WEBHOOK_TOKEN: z.preprocess(emptyToUndefined, z.string().min(16, 'must be at least 16 characters').optional()),
+    // Only changed by tests, which point it at a fake Shiprocket server
+    SHIPROCKET_API_URL: z.url().default('https://apiv2.shiprocket.in'),
+
     // ---------- Observability ----------
     // GET /api/metrics (Prometheus) answers only with "Authorization: Bearer <this>". Not set:
     // the endpoint doesn't exist (404).
@@ -104,6 +117,9 @@ const envSchema = z
     const cloudinary = [env.CLOUDINARY_CLOUD_NAME, env.CLOUDINARY_API_KEY, env.CLOUDINARY_API_SECRET].filter(Boolean).length;
     if (cloudinary !== 0 && cloudinary !== 3) {
       ctx.addIssue({ code: 'custom', path: ['CLOUDINARY_API_SECRET'], message: 'CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET go together: set all three or none' });
+    }
+    if (Boolean(env.SHIPROCKET_EMAIL) !== Boolean(env.SHIPROCKET_PASSWORD)) {
+      ctx.addIssue({ code: 'custom', path: ['SHIPROCKET_PASSWORD'], message: 'SHIPROCKET_EMAIL and SHIPROCKET_PASSWORD go together: set both or neither' });
     }
     const seller = [env.SHOP_LEGAL_NAME, env.SHOP_GSTIN, env.SHOP_ADDRESS].filter(Boolean).length;
     if (seller !== 0 && seller !== 3) {

@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  type AdminShipment,
+  type Shipment,
   codUnavailableReason,
   computeTotals,
   type Order,
@@ -23,15 +25,21 @@ import { ValidationFailedException } from '../common/validation.js';
 import type { Env } from '../config/env.js';
 import { EmailQueue } from '../email/email-queue.js';
 import { codOrderConfirmedMessage } from '../email/templates.js';
-import { Prisma, type Order as OrderRow, type OrderItem as OrderItemRow } from '../generated/prisma/client.js';
+import { Prisma } from '../generated/prisma/client.js';
 import { CartService } from '../cart/cart.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CouponsService } from '../coupons/coupons.service.js';
 import { MetricsService } from '../metrics/metrics.service.js';
 
-type OrderWithItems = OrderRow & { items: OrderItemRow[] };
+// An order with what every view of it shows: its items, and its parcel (the active shipment,
+// with its journey newest first)
+export const ORDER_INCLUDE = {
+  items: { orderBy: { position: 'asc' } },
+  shipments: { where: { cancelledAt: null }, include: { events: { orderBy: { at: 'desc' } } } },
+} satisfies Prisma.OrderInclude;
 
-const ORDER_INCLUDE = { items: { orderBy: { position: 'asc' } } } satisfies Prisma.OrderInclude;
+type OrderWithItems = Prisma.OrderGetPayload<{ include: typeof ORDER_INCLUDE }>;
+type ShipmentRow = OrderWithItems['shipments'][number];
 
 @Injectable()
 export class OrdersService {
@@ -230,8 +238,12 @@ export class OrdersService {
 
   // The shopper changed their mind: before paying online, or (cash on delivery) before it ships
   async cancel(userId: string, number: string): Promise<Order> {
-    const order = await this.prisma.order.findFirst({ where: { number, userId } });
+    const order = await this.prisma.order.findFirst({ where: { number, userId }, include: { shipments: { where: { cancelledAt: null }, select: { id: true } } } });
     if (!order) throw new NotFoundException('No such order');
+    // Already booked with a courier (being packed): the shop has to call that off first
+    if (order.shipments.length > 0) {
+      throw new ConflictException("Your order is already being packed for the courier, so it can't be cancelled here. Please contact us.");
+    }
     if (!(await this.release(order.id, 'CANCELLED', ['PENDING_PAYMENT', 'CONFIRMED']))) {
       throw new ConflictException("This order can't be cancelled any more. If it's paid, contact us for a refund.");
     }
@@ -357,6 +369,25 @@ export const toOrder = (o: OrderWithItems): Order => ({
   deliveredAt: iso(o.deliveredAt),
   cancelledAt: iso(o.cancelledAt),
   returnedAt: iso(o.returnedAt),
+  shipment: o.shipments[0] ? toShipment(o.shipments[0]) : null,
+});
+
+// A parcel as the shopper sees it
+const toShipment = (s: ShipmentRow): Shipment => ({
+  provider: s.provider,
+  courierName: s.courierName,
+  awb: s.awb,
+  trackingUrl: s.trackingUrl,
+  status: s.status,
+  statusAt: s.statusAt.toISOString(),
+  events: s.events.map((e) => ({ status: e.status, activity: e.activity, location: e.location, at: e.at.toISOString() })),
+});
+
+// ...and as admins see it: also the label to print, and whether a pickup was requested
+export const toAdminShipment = (s: ShipmentRow): AdminShipment => ({
+  ...toShipment(s),
+  labelUrl: s.labelUrl,
+  pickupRequestedAt: iso(s.pickupRequestedAt),
 });
 
 const toSummary = (o: OrderWithItems): OrderSummary => ({

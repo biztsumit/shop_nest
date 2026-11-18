@@ -26,10 +26,11 @@ describe('Scheduled jobs and clean-up (e2e)', () => {
     await app.close();
   });
 
-  it('the timetable: expire every minute, reconcile and stock alerts every 5, cart reminders hourly by day, clean up nightly', () => {
+  it('the timetable: expire every minute, reconcile and stock alerts every 5, parcel tracking every 30, cart reminders hourly by day, clean up nightly', () => {
     expect(app.get(QueueService).schedules).toEqual([
       { name: 'orders.expire', cron: '* * * * *' },
       { name: 'payments.reconcile', cron: '*/5 * * * *' },
+      { name: 'shipments.track', cron: '*/30 * * * *' },
       { name: 'stock-alerts.notify', cron: '*/5 * * * *' },
       { name: 'cart-reminders.send', cron: '15 9-21 * * *' },
       { name: 'maintenance.clean-up', cron: '30 3 * * *' },

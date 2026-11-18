@@ -3,6 +3,8 @@ import { QueueService } from '../jobs/queue.service.js';
 import { OrdersService } from '../orders/orders.service.js';
 import { PaymentsService } from '../payments/payments.service.js';
 import { RazorpayClient } from '../payments/razorpay.client.js';
+import { ShippingService } from '../shipping/shipping.service.js';
+import { ShiprocketClient } from '../shipping/shiprocket.client.js';
 import { CartRemindersService } from '../cart-reminders/cart-reminders.service.js';
 import { StockAlertsService } from '../stock-alerts/stock-alerts.service.js';
 import { MaintenanceService } from './maintenance.service.js';
@@ -19,6 +21,8 @@ export class ScheduledJobs {
     maintenance: MaintenanceService,
     stockAlerts: StockAlertsService,
     cartReminders: CartRemindersService,
+    shipping: ShippingService,
+    shiprocket: ShiprocketClient,
   ) {
     // Every minute: unpaid orders past their time give their stock back
     queue.every('orders.expire', '* * * * *', async () => {
@@ -27,6 +31,10 @@ export class ScheduledJobs {
     // Every 5 minutes: payments that neither the browser nor the webhook reported
     queue.every('payments.reconcile', '*/5 * * * *', async () => {
       if (razorpay.enabled) await payments.reconcile();
+    });
+    // Every 30 minutes: parcels on their way that no webhook told us about lately
+    queue.every('shipments.track', '*/30 * * * *', async () => {
+      if (shiprocket.enabled) await shipping.reconcile();
     });
     // Every 5 minutes: shoppers waiting for a sold-out size that's back get their email
     queue.every('stock-alerts.notify', '*/5 * * * *', async () => {

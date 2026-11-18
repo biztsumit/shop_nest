@@ -89,12 +89,24 @@ export const codOrderConfirmedMessage = (to: string, name: string, order: OrderF
   text: `Thank you, ${name}!\n\nOrder ${order.number} is confirmed and we're getting it ready. Please keep the amount below ready for the courier.\n\n${itemLines(order)}\nTo pay on delivery: ${formatPrice(order.total)}\n\nView your order: ${link}\n`,
 });
 
-export const orderShippedMessage = (to: string, name: string, order: OrderForEmail, link: string): EmailMessage => ({
-  to,
-  subject: `Order ${order.number} is on its way`,
-  html: layout(`Good news, ${name}!`, `<p>Order <strong>${escape(order.number)}</strong> has shipped.</p>${button(link, 'Track your order')}`),
-  text: `Good news, ${name}!\n\nOrder ${order.number} has shipped.\nTrack it: ${link}\n`,
-});
+// With the courier and tracking number when we know them (the button goes to the courier's
+// tracking page then; otherwise to the order page)
+export const orderShippedMessage = (
+  to: string,
+  name: string,
+  order: OrderForEmail & { shipment?: { courierName: string | null; awb: string | null; trackingUrl: string | null } | null },
+  link: string,
+): EmailMessage => {
+  const { courierName, awb, trackingUrl } = order.shipment ?? {};
+  const carrier = courierName && awb ? ` with ${courierName} (tracking number ${awb})` : '';
+  const track = trackingUrl ?? link;
+  return {
+    to,
+    subject: `Order ${order.number} is on its way`,
+    html: layout(`Good news, ${name}!`, `<p>Order <strong>${escape(order.number)}</strong> has shipped${escape(carrier)}.</p>${button(track, 'Track your parcel')}`),
+    text: `Good news, ${name}!\n\nOrder ${order.number} has shipped${carrier}.\nTrack it: ${track}\n`,
+  };
+};
 
 export const orderDeliveredMessage = (to: string, name: string, order: OrderForEmail, link: string): EmailMessage => ({
   to,

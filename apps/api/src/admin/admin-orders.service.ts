@@ -1,17 +1,17 @@
 import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { formatPrice, type AdminOrder, type AdminOrderListQuery, type AdminOrderSummary, type OrderStatus, type Page } from '@shop/shared';
+import { formatPrice, type AdminOrder, type AdminOrderListQuery, type AdminOrderSummary, type OrderStatus, type Page, type ShipOrder } from '@shop/shared';
 import { AuditService } from '../audit/audit.service.js';
 import type { Env } from '../config/env.js';
 import { EmailQueue } from '../email/email-queue.js';
 import { orderCancelledMessage, orderDeliveredMessage, orderReturnedMessage, orderShippedMessage } from '../email/templates.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { InvoicesService } from '../invoices/invoices.service.js';
-import { OrdersService, toOrder } from '../orders/orders.service.js';
+import { ORDER_INCLUDE, OrdersService, toAdminShipment, toOrder } from '../orders/orders.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 const ADMIN_INCLUDE = {
-  items: { orderBy: { position: 'asc' } },
+  ...ORDER_INCLUDE,
   user: { select: { id: true, name: true, email: true } },
   payment: true,
   refunds: { orderBy: { id: 'asc' } },
@@ -29,6 +29,10 @@ const MOVES = {
 
 // Statuses an admin may cancel from: unpaid online orders, and COD orders not yet shipped
 const CANCELLABLE: readonly OrderStatus[] = ['PENDING_PAYMENT', 'CONFIRMED'];
+
+// Who moved an order on: an admin (their id), or the courier's tracking (actor null, and `via`
+// says what it reported, for the audit log: "Shiprocket: DELIVERED")
+export type MoveOptions = { via?: string; tracking?: ShipOrder };
 
 @Injectable()
 export class AdminOrdersService {
@@ -73,10 +77,10 @@ export class AdminOrdersService {
   async get(number: string): Promise<AdminOrder> {
     const order = await this.prisma.order.findUnique({ where: { number }, include: ADMIN_INCLUDE });
     if (!order) throw new NotFoundException('No such order');
-    return toAdminOrder(order);
+    return toAdminOrder(order, Boolean(this.config.get('SHIPROCKET_EMAIL', { infer: true })));
   }
 
-  async move(number: string, move: keyof typeof MOVES, actorId: string): Promise<AdminOrder> {
+  async move(number: string, move: keyof typeof MOVES, actorId: string | null, { via, tracking }: MoveOptions = {}): Promise<AdminOrder> {
     const { from, to, stamp, email } = MOVES[move];
     const current = await this.prisma.order.findUnique({ where: { number }, select: { id: true, status: true, paymentMethod: true, total: true } });
     if (!current) throw new NotFoundException('No such order');
@@ -90,6 +94,15 @@ export class AdminOrdersService {
         data: { status: to, [stamp]: now, ...(cashCollected ? { paidAt: now } : {}) },
       });
       if (claimed.count === 0) return false;
+      // Sent with a courier outside Shiprocket: its tracking number, so the shopper can follow it
+      if (move === 'ship' && tracking?.trackingNumber) {
+        if (await tx.shipment.count({ where: { orderId: current.id, cancelledAt: null } })) {
+          throw new ConflictException('This order already has a Shiprocket shipment. Cancel it first, or mark it shipped without a tracking number.');
+        }
+        await tx.shipment.create({
+          data: { orderId: current.id, provider: 'MANUAL', courierName: tracking.courierName, awb: tracking.trackingNumber, status: 'SHIPPED', statusAt: now },
+        });
+      }
       // Cash collected = paid: the GST invoice is issued now, in the same transaction
       if (cashCollected) await this.invoices.issue(tx, current.id, now);
       await this.audit.record(tx, {
@@ -97,7 +110,7 @@ export class AdminOrdersService {
         action: `order.${move}`,
         entityType: 'order',
         entityId: number,
-        summary: `${number}: ${statusWords(current.status)} → ${statusWords(to)}${cashCollected ? ` (${formatPrice(current.total)} collected in cash)` : ''}`,
+        summary: `${number}: ${statusWords(current.status)} → ${statusWords(to)}${cashCollected ? ` (${formatPrice(current.total)} collected in cash)` : ''}${tracking?.trackingNumber ? ` with ${tracking.courierName}, ${tracking.trackingNumber}` : ''}${via ? ` (${via})` : ''}`,
         changes: { status: { from: current.status, to } },
       });
       return true;
@@ -115,8 +128,11 @@ export class AdminOrdersService {
   // Unpaid online orders, and cash-on-delivery orders not yet shipped. A paid order gets its
   // money back through a refund instead.
   async cancel(number: string, actorId: string): Promise<AdminOrder> {
-    const order = await this.prisma.order.findUnique({ where: { number } });
+    const order = await this.prisma.order.findUnique({ where: { number }, include: { shipments: { where: { cancelledAt: null }, select: { id: true } } } });
     if (!order) throw new NotFoundException('No such order');
+    if (order.shipments.length > 0) {
+      throw new ConflictException('This order has a parcel booked with the courier. Cancel the shipment first, then the order.');
+    }
     const cancelledNow = CANCELLABLE.includes(order.status) && await this.prisma.$transaction(async (tx) => {
       // Claimed from the status just read: if it moved on meanwhile (paid, shipped), nothing happens
       if (!(await this.orders.release(order.id, 'CANCELLED', [order.status], tx))) return false;
@@ -143,7 +159,7 @@ export class AdminOrdersService {
   // deliver it. Nothing was paid, so there's nothing to refund: the items go back on sale and
   // a coupon it used can be used again. (A paid online order that comes back gets a refund
   // with restock instead.)
-  async markReturned(number: string, actorId: string): Promise<AdminOrder> {
+  async markReturned(number: string, actorId: string | null, via?: string): Promise<AdminOrder> {
     const order = await this.prisma.order.findUnique({ where: { number } });
     if (!order) throw new NotFoundException('No such order');
     const returned = order.paymentMethod === 'COD' && order.status === 'SHIPPED' && await this.prisma.$transaction(async (tx) => {
@@ -155,7 +171,7 @@ export class AdminOrdersService {
         action: 'order.return',
         entityType: 'order',
         entityId: number,
-        summary: `${number}: shipped → returned, not paid (items back on sale)`,
+        summary: `${number}: shipped → returned, not paid (items back on sale)${via ? ` (${via})` : ''}`,
         changes: { status: { from: 'SHIPPED', to: 'RETURNED' } },
       });
       return true;
@@ -178,7 +194,7 @@ export class AdminOrdersService {
 // "PENDING_PAYMENT" → "pending payment", for messages and the audit log
 const statusWords = (status: OrderStatus): string => status.toLowerCase().replace('_', ' ');
 
-const toAdminOrder = (o: AdminRow): AdminOrder => ({
+const toAdminOrder = (o: AdminRow, shiprocketEnabled: boolean): AdminOrder => ({
   ...toOrder(o),
   customer: o.user,
   payment: o.payment && {
@@ -189,4 +205,6 @@ const toAdminOrder = (o: AdminRow): AdminOrder => ({
     providerPaymentId: o.payment.providerPaymentId,
   },
   refunds: o.refunds.map((r) => ({ id: r.id, amount: r.amount, status: r.status, reason: r.reason, reference: r.reference, createdAt: r.createdAt.toISOString() })),
+  shipment: o.shipments[0] ? toAdminShipment(o.shipments[0]) : null,
+  shiprocketEnabled,
 });

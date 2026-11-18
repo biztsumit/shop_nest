@@ -73,6 +73,15 @@ services:
         sync: false
       - key: SHOP_ADDRESS
         sync: false
+      # Shipping with Shiprocket (optional: empty = orders are marked shipped by hand)
+      - key: SHIPROCKET_EMAIL
+        sync: false
+      - key: SHIPROCKET_PASSWORD
+        sync: false
+      - key: SHIPROCKET_PICKUP_LOCATION
+        sync: false
+      - key: SHIPROCKET_WEBHOOK_TOKEN
+        generateValue: true
       # Observability: the metrics token is generated; Sentry is optional (leave empty = off)
       - key: METRICS_TOKEN
         generateValue: true

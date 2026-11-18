@@ -5,6 +5,7 @@ import { paiseSchema } from "./money.js";
 import { orderSchema, orderStatusSchema, orderSummarySchema } from "./orders.js";
 import { refundSchema } from "./payments.js";
 import { reviewSchema } from "./reviews.js";
+import { adminShipmentSchema } from "./shipping.js";
 
 // What admins send and get back. Update schemas are built from fields WITHOUT defaults:
 // zod's .partial() keeps .default(), which would quietly reset every field not sent.
@@ -105,6 +106,9 @@ export const adminOrderSchema = orderSchema.extend({
     })
     .nullable(),
   refunds: z.array(refundSchema),
+  shipment: adminShipmentSchema.nullable(),
+  // Whether parcels can be booked with Shiprocket from this page (the shop has its keys)
+  shiprocketEnabled: z.boolean(),
 });
 
 // ---------- Reviews ----------

@@ -5,7 +5,7 @@ import { ValidationFailedException } from '../common/validation.js';
 import { EmailQueue } from '../email/email-queue.js';
 import { orderRefundedMessage } from '../email/templates.js';
 import type { Order, Refund as RefundRow } from '../generated/prisma/client.js';
-import { OrdersService, toOrder } from '../orders/orders.service.js';
+import { ORDER_INCLUDE, OrdersService, toOrder } from '../orders/orders.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RazorpayClient } from './razorpay.client.js';
 
@@ -102,7 +102,7 @@ export class RefundsService {
     });
 
     this.logger.log({ orderId: order.id, refundId: saved.id, amount: saved.amount, actorId }, 'Refund made');
-    const view = toOrder(await this.prisma.order.findUniqueOrThrow({ where: { id: order.id }, include: { items: { orderBy: { position: 'asc' } } } }));
+    const view = toOrder(await this.prisma.order.findUniqueOrThrow({ where: { id: order.id }, include: ORDER_INCLUDE }));
     await this.emails.enqueue(orderRefundedMessage(order.user.email, order.user.name, view, saved.amount, emailReason ?? ''));
     return toRefund(saved);
   }
@@ -146,7 +146,7 @@ export class RefundsService {
     });
 
     this.logger.log({ orderId: order.id, refundId: saved.id, amount: saved.amount, actorId }, 'Cash-on-delivery refund recorded');
-    const view = toOrder(await this.prisma.order.findUniqueOrThrow({ where: { id: order.id }, include: { items: { orderBy: { position: 'asc' } } } }));
+    const view = toOrder(await this.prisma.order.findUniqueOrThrow({ where: { id: order.id }, include: ORDER_INCLUDE }));
     await this.emails.enqueue(orderRefundedMessage(order.user.email, order.user.name, view, saved.amount, input.reason, reference));
     return toRefund(saved);
   }

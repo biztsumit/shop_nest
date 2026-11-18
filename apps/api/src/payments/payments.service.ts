@@ -5,7 +5,7 @@ import type { Env } from '../config/env.js';
 import { EmailQueue } from '../email/email-queue.js';
 import { orderConfirmedMessage } from '../email/templates.js';
 import { Prisma, type Payment as PaymentRow } from '../generated/prisma/client.js';
-import { OrdersService, toOrder } from '../orders/orders.service.js';
+import { ORDER_INCLUDE, OrdersService, toOrder } from '../orders/orders.service.js';
 import { InvoicesService } from '../invoices/invoices.service.js';
 import { MetricsService } from '../metrics/metrics.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -207,7 +207,7 @@ export class PaymentsService {
     if (outcome === 'already-settled') return;
     const row = await this.prisma.order.findUniqueOrThrow({
       where: { id: payment.orderId },
-      include: { items: { orderBy: { position: 'asc' } }, user: { select: { email: true, name: true } } },
+      include: { ...ORDER_INCLUDE, user: { select: { email: true, name: true } } },
     });
     const order = toOrder(row);
     if (outcome === 'refund') {
