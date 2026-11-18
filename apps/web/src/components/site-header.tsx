@@ -1,10 +1,12 @@
-import { Search, Store } from "lucide-react";
+import { Store } from "lucide-react";
 import Link from "next/link";
 import { site } from "@/lib/site";
 import { HeaderActions } from "./header-actions";
+import { SearchBox } from "./search-box";
 
 // The bar on every page. The search box is a plain GET form: it works before any JavaScript
-// has loaded, and the results page is a normal, shareable URL (/products?search=mug).
+// has loaded, and the results page is a normal, shareable URL (/products?search=mug). Once
+// JavaScript runs, it also suggests products as you type (search-box.tsx).
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-surface/85 backdrop-blur">
@@ -20,16 +22,7 @@ export function SiteHeader() {
           <Link href="/products" className="rounded-lg px-3 py-2 text-muted hover:bg-subtle hover:text-fg">Shop all</Link>
         </nav>
 
-        <form action="/products" role="search" className="relative ml-auto w-full max-w-xs">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-faint" aria-hidden />
-          <input
-            type="search"
-            name="search"
-            placeholder="Search products"
-            aria-label="Search products"
-            className="h-10 w-full rounded-lg border border-line bg-subtle pr-3 pl-9 text-sm outline-none placeholder:text-faint focus:border-brand focus:bg-surface focus:ring-3 focus:ring-brand/15"
-          />
-        </form>
+        <SearchBox />
 
         <HeaderActions />
       </div>

@@ -103,7 +103,9 @@ async function Catalog({ searchParams }: Pick<PageProps<"/products">, "searchPar
   };
 
   const category = categories.find((c) => c.slug === filters.category);
-  const title = filters.search ? `Results for “${filters.search}”` : (category?.name ?? "All products");
+  // A search with typos is run corrected ("hoddie" → "hoodie"): the title shows what was searched
+  const searchedFor = page?.searchedFor ?? null;
+  const title = filters.search ? `Results for “${searchedFor ?? filters.search}”` : (category?.name ?? "All products");
   const rupees = (r: string) => formatPrice(+r * 100);
 
   // The filters in use, each as a chip that removes it
@@ -133,6 +135,7 @@ async function Catalog({ searchParams }: Pick<PageProps<"/products">, "searchPar
           {category || filters.search ? <Link href="/products" className="hover:text-fg">Shop all</Link> : <span>Shop all</span>}
         </nav>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
+        {searchedFor && <p className="text-sm text-muted">No exact match for “{filters.search}”, so we searched for “{searchedFor}”.</p>}
       </div>
 
       <div className="grid gap-8 lg:grid-cols-[15rem_1fr]">

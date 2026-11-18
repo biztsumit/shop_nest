@@ -5,6 +5,8 @@ import {
   problemSchema,
   productDetailSchema,
   productFacetsSchema,
+  productPageSchema,
+  productSuggestionsSchema,
   productSummarySchema,
   type ProductSummary,
 } from '@shop/shared';
@@ -174,6 +176,66 @@ describe('Public catalog (e2e)', () => {
       expect(slugs(await list('?search=%25'))).toEqual([]);   // "%" must not mean "anything"
       expect(slugs(await list('?search=t_e'))).toEqual([]);   // nor "_" "any one character"
       expect(slugs(await list('?search=%20%20'))).toHaveLength(3);   // only spaces = no search
+    });
+
+    it('search forgives typos and says what it searched for; every word must match, in the name or category', async () => {
+      const clothing = await make.category('clothing');
+      await make.product('zip-hoodie', { categoryId: clothing.id });
+      await make.product('denim-jacket', { categoryId: clothing.id });
+      await make.product('ceramic-mug');
+      const tee = await make.product('classic-tee');
+      await prisma.product.update({ where: { id: tee.id }, data: { name: 'Classic T-shirt' } });
+      await make.product('velvet-scarf', { status: 'DRAFT' });
+      const search = async (q: string) => {
+        const res = await http().get(`/api/products?sort=name_asc&search=${encodeURIComponent(q)}`).expect(200);
+        const page = productPageSchema.parse(res.body);
+        return { slugs: slugs(page), searchedFor: page.searchedFor };
+      };
+
+      expect(await search('hoodie')).toEqual({ slugs: ['zip-hoodie'], searchedFor: null });
+      expect(await search('hoddie')).toEqual({ slugs: ['zip-hoodie'], searchedFor: 'hoodie' });
+      expect(await search('Denim Jaket')).toEqual({ slugs: ['denim-jacket'], searchedFor: 'denim jacket' });
+      expect(await search('tshirt')).toEqual({ slugs: ['classic-tee'], searchedFor: 't-shirt' });
+      expect(await search('clothing')).toEqual({ slugs: ['denim-jacket', 'zip-hoodie'], searchedFor: null });   // the category's name
+      expect(await search('clothing mug')).toEqual({ slugs: [], searchedFor: null });                           // both words must match
+      // Drafts are invisible, and so are their words: nothing to correct "velvat" to
+      expect(await search('velvet')).toEqual({ slugs: [], searchedFor: null });
+      expect(await search('velvat')).toEqual({ slugs: [], searchedFor: null });
+
+      // A product added a moment ago is found at once, typos and all
+      await make.product('linen-shirt');
+      expect(await search('linnen')).toEqual({ slugs: ['linen-shirt'], searchedFor: 'linen' });
+
+      // "tshirt" finds a "T-shirts" category's products, though no name says "tshirt"
+      const tees = await prisma.category.create({ data: { name: 'T-shirts', slug: 't-shirts' } });
+      await make.product('organic-crew-neck', { categoryId: tees.id });
+      expect(await search('tshirt')).toEqual({ slugs: ['classic-tee', 'organic-crew-neck'], searchedFor: 't-shirt' });
+    });
+
+    it('suggestions while typing: the best few products and categories; the last word may be unfinished', async () => {
+      const clothing = await make.category('clothing');
+      const empty = await make.category('hood-ornaments');
+      await make.product('zip-hoodie', { categoryId: clothing.id, images: ['https://img.test/hoodie.jpg'] });
+      await make.product('pullover-hoodie', { categoryId: clothing.id });
+      await make.product('hoodie', { categoryId: clothing.id });
+      await make.product('denim-jacket', { categoryId: clothing.id });
+      await make.product('hooded-scarf', { status: 'DRAFT' });
+      void empty;   // a category with no products on sale isn't suggested
+      const suggest = async (q: string) => productSuggestionsSchema.parse((await http().get(`/api/products/suggest?q=${encodeURIComponent(q)}`).expect(200)).body);
+
+      const hoo = await suggest('hoo');
+      // Names starting with the word first, then names with a word starting with it; shorter first
+      expect(hoo.products.map((p) => p.slug)).toEqual(['hoodie', 'zip-hoodie', 'pullover-hoodie']);
+      expect(hoo.products[1]).toEqual({ slug: 'zip-hoodie', name: 'Zip Hoodie', price: 49900, category: 'clothing', image: { url: 'https://img.test/hoodie.jpg', alt: 'zip-hoodie photo 1' } });
+      expect(hoo.categories).toEqual([]);
+      expect(hoo.searchedFor).toBeNull();
+
+      expect(await suggest('cloth')).toMatchObject({ categories: [{ slug: 'clothing', name: 'clothing' }] });
+      const typo = await suggest('denim jaket');
+      expect(typo).toMatchObject({ searchedFor: 'denim jacket', products: [{ slug: 'denim-jacket' }] });
+
+      await http().get('/api/products/suggest?q=').expect(422);
+      expect(await suggest('%')).toEqual({ searchedFor: null, products: [], categories: [] });
     });
 
     it('rejects nonsense with one clear 422 listing every problem', async () => {

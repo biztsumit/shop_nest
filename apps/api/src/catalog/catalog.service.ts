@@ -1,5 +1,18 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { Category, Page, ProductDetail, ProductFacetQuery, ProductFacets, ProductListQuery, ProductSummary } from '@shop/shared';
+import {
+  buildVocabulary,
+  correctQuery,
+  type Category,
+  type CorrectedQuery,
+  type ProductDetail,
+  type ProductFacetQuery,
+  type ProductFacets,
+  type ProductListQuery,
+  type ProductPage,
+  type ProductSuggestions,
+  type ProductSummary,
+  type Vocabulary,
+} from '@shop/shared';
 import type { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ratingSummary } from '../reviews/rating.js';
@@ -8,6 +21,11 @@ import { afterCursor, encodeCursor, productOrderBy } from './product-cursor.js';
 // The public catalog: everything a visitor may see. Only ACTIVE products, ever.
 @Injectable()
 export class CatalogService {
+  // The shop's words, for correcting typos in searches (see packages/shared/src/search.ts), and
+  // a fingerprint of the catalog they were read from: rebuilt as soon as a product or category
+  // is added, renamed or changes status, so never stale
+  private words: { fingerprint: string; vocabulary: Vocabulary } | null = null;
+
   constructor(private readonly prisma: PrismaService) {}
 
   async listCategories(): Promise<Category[]> {
@@ -40,9 +58,10 @@ export class CatalogService {
     return categories.map(({ _count, ...category }) => ({ ...category, productCount: totals.get(category.id) ?? 0 }));
   }
 
-  async listProducts(query: ProductListQuery): Promise<Page<ProductSummary>> {
+  async listProducts(query: ProductListQuery): Promise<ProductPage> {
     const { sort, limit, cursor, ...filters } = query;
-    const where = await this.filterWhere(filters);
+    const search = await this.correct(filters.search);
+    const where = await this.filterWhere(filters, search);
     if (cursor) where.AND.push(afterCursor(sort, cursor));
 
     // One row MORE than asked for: if it exists, there's a next page
@@ -58,7 +77,50 @@ export class CatalogService {
     return {
       data: page.map(toSummary),
       nextCursor: rows.length > limit && last ? encodeCursor(sort, last) : null,
+      searchedFor: search?.correctedTo ?? null,
     };
+  }
+
+  // The search box's suggestions while typing: a few products, best first, and categories.
+  // The last word is still being typed, so it only has to start a word ("hoo" → hoodies).
+  async suggest(q: string): Promise<ProductSuggestions> {
+    const search = correctQuery(q, await this.vocabulary(), { typing: true });
+    if (search.terms.length === 0) return { searchedFor: null, products: [], categories: [] };
+    const [rows, categories] = await Promise.all([
+      this.prisma.product.findMany({
+        where: { status: 'ACTIVE', AND: search.terms.map(termMatches) },
+        // A few more than shown, to pick the best of them below
+        take: 30,
+        orderBy: { name: 'asc' },
+        select: {
+          slug: true,
+          name: true,
+          price: true,
+          category: { select: { name: true } },
+          images: { orderBy: [{ position: 'asc' }, { id: 'asc' }], take: 1, select: { url: true, alt: true } },
+        },
+      }),
+      this.prisma.category.findMany({
+        where: {
+          OR: search.terms.map((t) => ({ name: { contains: escapeLike(t), mode: 'insensitive' as const } })),
+          products: { some: { status: 'ACTIVE' } },
+        },
+        orderBy: { name: 'asc' },
+        take: 3,
+        select: { slug: true, name: true },
+      }),
+    ]);
+    // Best first: the name starts with the first word, then a word in it does, then shorter names
+    const first = search.terms[0]!;
+    const rank = (name: string): number => {
+      const lower = name.toLowerCase();
+      return lower.startsWith(first) ? 0 : lower.split(/[s-]+/).some((w) => w.startsWith(first)) ? 1 : 2;
+    };
+    const products = rows
+      .sort((a, b) => rank(a.name) - rank(b.name) || a.name.length - b.name.length || a.name.localeCompare(b.name))
+      .slice(0, 6)
+      .map((p) => ({ slug: p.slug, name: p.name, price: p.price, category: p.category?.name ?? null, image: p.images[0] ?? null }));
+    return { searchedFor: search.correctedTo, products, categories };
   }
 
   async getProduct(slug: string): Promise<ProductDetail> {
@@ -95,14 +157,15 @@ export class CatalogService {
   // The counting happens here, over the variants of the matching products: fine for a shop of
   // a few thousand products. Far beyond that, a GROUP BY in SQL would do it in the database.
   async facets(filters: ProductFacetQuery): Promise<ProductFacets> {
-    const [colours, sizes] = await Promise.all([this.facet(filters, 'colour'), this.facet(filters, 'size')]);
+    const search = await this.correct(filters.search);
+    const [colours, sizes] = await Promise.all([this.facet(filters, search, 'colour'), this.facet(filters, search, 'size')]);
     return { colours, sizes };
   }
 
-  private async facet(filters: ProductFacetQuery, option: FacetOption): Promise<ProductFacets['colours']> {
+  private async facet(filters: ProductFacetQuery, search: CorrectedQuery | null, option: FacetOption): Promise<ProductFacets['colours']> {
     const other: FacetOption = option === 'colour' ? 'size' : 'colour';
     const rows = await this.prisma.product.findMany({
-      where: await this.filterWhere({ ...filters, [option]: undefined }),
+      where: await this.filterWhere({ ...filters, [option]: undefined }, search),
       select: { variants: { select: { options: true, stock: true } } },
     });
 
@@ -126,9 +189,31 @@ export class CatalogService {
       .sort((a, b) => (option === 'size' ? compareSizes(a.value, b.value) : a.value.localeCompare(b.value)));
   }
 
+  // The search, with typos corrected (null = no search)
+  private async correct(search: string | undefined): Promise<CorrectedQuery | null> {
+    return search ? correctQuery(search, await this.vocabulary()) : null;
+  }
+
+  private async vocabulary(): Promise<Vocabulary> {
+    // One small query tells whether anything that feeds the word list changed
+    const [stamp] = await this.prisma.$queryRaw<Array<{ fingerprint: string }>>`
+      SELECT concat_ws('/',
+        (SELECT count(*) FROM products WHERE status = 'ACTIVE'), (SELECT max(updated_at) FROM products),
+        (SELECT count(*) FROM categories), (SELECT max(updated_at) FROM categories)) AS fingerprint`;
+    const fingerprint = stamp?.fingerprint ?? '';
+    if (this.words?.fingerprint !== fingerprint) {
+      const [products, categories] = await Promise.all([
+        this.prisma.product.findMany({ where: { status: 'ACTIVE' }, select: { name: true } }),
+        this.prisma.category.findMany({ select: { name: true } }),
+      ]);
+      this.words = { fingerprint, vocabulary: buildVocabulary([...products, ...categories].map((r) => r.name)) };
+    }
+    return this.words.vocabulary;
+  }
+
   // The filters as one Prisma condition (always with an AND list, so more can be added)
-  private async filterWhere(filters: ProductFacetQuery): Promise<Prisma.ProductWhereInput & { AND: Prisma.ProductWhereInput[] }> {
-    const { search, category, minPrice, maxPrice, inStock, onSale, minRating, colour, size } = filters;
+  private async filterWhere(filters: ProductFacetQuery, search: CorrectedQuery | null): Promise<Prisma.ProductWhereInput & { AND: Prisma.ProductWhereInput[] }> {
+    const { category, minPrice, maxPrice, inStock, onSale, minRating, colour, size } = filters;
 
     // Colour and size must match on the SAME variant (and, with "in stock", that variant must
     // be in stock): a black tee that only comes in S is not a "black, L" tee
@@ -140,8 +225,6 @@ export class CatalogService {
 
     return {
       status: 'ACTIVE',
-      // ILIKE '%term%', case-insensitive: fast thanks to the trigram index on name
-      ...(search && { name: { contains: escapeLike(search), mode: 'insensitive' } }),
       ...(category && { categoryId: { in: await this.categoryWithDescendants(category) } }),
       ...((minPrice !== undefined || maxPrice !== undefined) && { price: { gte: minPrice, lte: maxPrice } }),
       ...(inStock && !variant.length && { stock: { gt: 0 } }),
@@ -150,6 +233,9 @@ export class CatalogService {
         ...(variant.length ? [{ variants: { some: { AND: variant } } }] : []),
         // On sale: some variant has a "was" price (the database makes sure it's higher)
         ...(onSale ? [{ variants: { some: { compareAtPrice: { not: null } } } }] : []),
+        // Every word of the search, in the name or the category's name. A search with no
+        // usable words ("%", "-") matches nothing, rather than everything.
+        ...(search ? (search.terms.length ? search.terms.map(termMatches) : [{ id: { in: [] } }]) : []),
       ],
     };
   }
@@ -174,6 +260,15 @@ export class CatalogService {
 // `contains` passes them through. Without this, searching for "%" would match every product.
 // A backslash in front makes them plain characters again (the backslash itself too).
 export const escapeLike = (text: string): string => text.replace(/[\\%_]/g, (char) => `\\${char}`);
+
+// One search word: somewhere in the product's name or its category's name (ILIKE '%word%',
+// any case; fast on names thanks to the trigram index)
+const termMatches = (term: string): Prisma.ProductWhereInput => ({
+  OR: [
+    { name: { contains: escapeLike(term), mode: 'insensitive' } },
+    { category: { name: { contains: escapeLike(term), mode: 'insensitive' } } },
+  ],
+});
 
 type FacetOption = 'colour' | 'size';
 

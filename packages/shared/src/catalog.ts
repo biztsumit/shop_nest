@@ -88,7 +88,7 @@ export const categorySchema = z.object({
   productCount: z.number().int(),   // ACTIVE products in this category and all categories below it
 });
 
-const imageSchema = z.object({ url: z.string(), alt: z.string() });
+export const imageSchema = z.object({ url: z.string(), alt: z.string() });
 
 // One card in a product list
 export const productSummarySchema = z.object({

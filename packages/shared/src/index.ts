@@ -20,3 +20,4 @@ export * from "./stock-alerts.js";
 export * from "./email-preferences.js";
 export * from "./invoices.js";
 export * from "./shipping.js";
+export * from "./search.js";

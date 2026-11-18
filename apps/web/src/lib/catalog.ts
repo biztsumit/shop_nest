@@ -9,13 +9,13 @@ import {
   pageSchema,
   productDetailSchema,
   productFacetsSchema,
-  productSummarySchema,
+  productPageSchema,
   reviewSchema,
   type Category,
   type Page,
   type ProductDetail,
   type ProductFacets,
-  type ProductSummary,
+  type ProductPage,
   type Review,
 } from "@shop/shared";
 import { cacheLife, cacheTag } from "next/cache";
@@ -74,11 +74,12 @@ const toParams = (query: ProductQuery): URLSearchParams => {
   return params;
 };
 
-export const getProducts = async (query: ProductQuery): Promise<Page<ProductSummary>> => {
+// A page of products. With a search, `searchedFor` is set when typos were corrected
+export const getProducts = async (query: ProductQuery): Promise<ProductPage> => {
   "use cache";
   cacheLife("minutes");
   cacheTag("products");
-  return (await getJson(`/products?${toParams(query)}`, pageSchema(productSummarySchema))) ?? { data: [], nextCursor: null };
+  return (await getJson(`/products?${toParams(query)}`, productPageSchema)) ?? { data: [], nextCursor: null, searchedFor: null };
 };
 
 // The colour and size choices (with counts) for these filters
