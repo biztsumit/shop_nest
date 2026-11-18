@@ -24,11 +24,19 @@ describe('validateEnv', () => {
       JOB_SCHEDULES_ENABLED: true,
       ORDER_PAYMENT_MINUTES: 30,
       RAZORPAY_API_URL: 'https://api.razorpay.com',
+      INVOICE_PREFIX: 'INV',
       SENTRY_TRACES_SAMPLE_RATE: 0.1,
       LOG_LEVEL: 'info',
       RATE_LIMIT_PER_MINUTE: 120,
       TRUST_PROXY: 'loopback',
     });
+  });
+
+  it('takes the GST seller details all together, with a GSTIN that checks out', () => {
+    const seller = { SHOP_LEGAL_NAME: 'Shop Nest Private Limited', SHOP_GSTIN: '29abcde1234f1zw', SHOP_ADDRESS: '12 MG Road, Bengaluru 560001' };
+    expect(validateEnv({ ...valid, ...seller }).SHOP_GSTIN).toBe('29ABCDE1234F1ZW');   // upper-cased
+    expect(() => validateEnv({ ...valid, SHOP_GSTIN: seller.SHOP_GSTIN })).toThrow(/set all three or none/);
+    expect(() => validateEnv({ ...valid, ...seller, SHOP_GSTIN: '29ABCDE1234F1ZX' })).toThrow(/SHOP_GSTIN: must be a valid 15-character GSTIN/);
   });
 
   it('refuses a short JWT secret, which could be guessed', () => {

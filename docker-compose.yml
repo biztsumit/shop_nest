@@ -60,6 +60,9 @@ services:
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+      SHOP_LEGAL_NAME: ${SHOP_LEGAL_NAME:-}
+      SHOP_GSTIN: ${SHOP_GSTIN:-}
+      SHOP_ADDRESS: ${SHOP_ADDRESS:-}
     depends_on:
       migrate:
         condition: service_completed_successfully

@@ -94,6 +94,8 @@ export class AdminCatalogService {
             description: input.description,
             status: input.status,
             categoryId: input.categoryId,
+            hsnCode: input.hsnCode,
+            gstRate: input.gstRate,
             images: { create: input.images.map((img, position) => ({ ...img, position })) },
           },
         });
@@ -237,6 +239,8 @@ const PRODUCT_LABELS = {
   name: 'name',
   slug: 'slug',
   status: ['status', (v: unknown) => String(v).toLowerCase()],
+  hsnCode: ['HSN code', (v: unknown) => String(v) || 'none'],
+  gstRate: ['GST rate', (v: unknown) => `${String(v)}%`],
   images: ['photos', (v: unknown) => String(Array.isArray(v) ? v.length : 0)],
 } satisfies Parameters<typeof describeChanges>[1];
 const VARIANT_LABELS = {
@@ -267,6 +271,8 @@ const toDetail = (p: DetailRow): AdminProductDetail => ({
   status: p.status,
   description: p.description,
   categoryId: p.categoryId,
+  hsnCode: p.hsnCode,
+  gstRate: p.gstRate,
   price: p.price,
   stock: p.stock,
   variantCount: p._count.variants,

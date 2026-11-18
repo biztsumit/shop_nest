@@ -52,6 +52,6 @@ Built one step at a time. Each step: working code, tests, and what's new explain
 - [x] 11.1 Back-in-stock alerts: "Email me when it's back" on sold-out variants; a job every 5 minutes emails each waiting shopper once
 - [x] 11.2 Abandoned-cart reminders: one email per cart left for a day (confirmed emails, daytime only), with a one-click unsubscribe link and an account setting
 - [x] 11.3 Cash on delivery: ₹49 fee, orders up to ₹5,000, confirmed emails only; CONFIRMED → shipped → delivered (paid when delivered); parcels refused at the door are marked returned (stock back); refunds paid outside the shop are recorded with a reference
-- [ ] 11.4 GST invoice PDF for paid orders
+- [x] 11.4 GST invoice PDF for paid orders: HSN code and GST rate per product; issued with the payment (COD: on delivery), numbered per financial year with no gaps; CGST+SGST or IGST by delivery state; append-only
 - [ ] 11.5 Shipping integration (tracking numbers, status by webhook)
 - [ ] 11.6 Better search: typo-tolerant results and autocomplete

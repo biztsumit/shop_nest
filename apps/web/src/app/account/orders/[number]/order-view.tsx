@@ -1,7 +1,7 @@
 "use client";
 
 import { formatPrice, orderSchema, type Order } from "@shop/shared";
-import { CircleCheck, Clock, ImageOff, Info, PackageX } from "lucide-react";
+import { CircleCheck, Clock, FileDown, ImageOff, Info, PackageX } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/toast";
 import { api, ApiRequestError, errorMessage } from "@/lib/client-api";
 import { formatDateTime, formatOptions } from "@/lib/format";
+import { downloadFile } from "@/lib/download";
 import { payOrder } from "@/lib/pay-order";
 
 // The order, or "missing" if there's no such order of this shopper's
@@ -31,7 +32,7 @@ export function OrderView({ number }: { number: string }) {
   const router = useRouter();
   const toast = useToast();
   const [order, setOrder] = useState<Order | null | "missing">(null);
-  const [busy, setBusy] = useState<"pay" | "cancel" | null>(null);
+  const [busy, setBusy] = useState<"pay" | "cancel" | "invoice" | null>(null);
   const [paymentUnavailable, setPaymentUnavailable] = useState(params.get("payment") === "unavailable");
 
   const load = useCallback(async () => setOrder(await fetchOrder(number)), [number]);
@@ -73,6 +74,17 @@ export function OrderView({ number }: { number: string }) {
     try {
       setOrder(orderSchema.parse(await api(`/orders/${order.number}/cancel`, { method: "POST" })));
       toast.show("Order cancelled");
+    } catch (err) {
+      toast.show(errorMessage(err), "error");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const invoice = async () => {
+    setBusy("invoice");
+    try {
+      await downloadFile(`/orders/${order.number}/invoice`, `invoice-${order.number}.pdf`);
     } catch (err) {
       toast.show(errorMessage(err), "error");
     } finally {
@@ -153,6 +165,12 @@ export function OrderView({ number }: { number: string }) {
             <h2 className="font-semibold">Delivering to</h2>
             <AddressLines address={order.shippingAddress} />
           </Card>
+          {/* Paid orders have a GST invoice (cash on delivery: once delivered) */}
+          {order.paidAt && (
+            <Button variant="secondary" loading={busy === "invoice"} disabled={busy !== null} onClick={invoice}>
+              <FileDown className="size-4" aria-hidden /> Download invoice (PDF)
+            </Button>
+          )}
         </div>
       </div>
     </div>

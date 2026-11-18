@@ -168,6 +168,16 @@ const skuOf = (code: string, options: Options): string =>
 const sameOptions = (a: Options, b: Options) => optionsKey(a) === optionsKey(b);
 
 // Every demo product, built and checked against the shared input schema (categoryId comes later)
+// GST for each demo product (by its code): HSN code and rate (%). Typical values, for trying the
+// invoices; a real shop checks each with its accountant. (Clothes and shoes up to ₹2,500 a piece
+// are 5%, dearer ones 18%.)
+const GST: Record<string, [hsn: string, rate: number]> = {
+  CCT: ['6109', 5], GPT: ['6109', 5], OCN: ['6109', 5], FPH: ['6110', 5], ZUH: ['6110', 5], SFJ: ['6203', 5],
+  ERS: ['6404', 18], CSN: ['6404', 5], LSD: ['6403', 5], CCM: ['6912', 5], LDL: ['9405', 18], CTB: ['6301', 5],
+  GWB: ['7013', 18], CIS: ['7323', 5], TOTE: ['4202', 18], LWL: ['4202', 18], WBN: ['6505', 5], AWW: ['9102', 18],
+  WEB: ['8518', 18], PBS: ['8518', 18], WPK: ['6201', 18], SSC: ['6214', 5], RPC: ['3926', 18],
+};
+
 const buildProducts = () =>
   PRODUCTS.map((p) => {
     const slug = slugify(p.name);
@@ -176,6 +186,8 @@ const buildProducts = () =>
       slug,
       description: p.description,
       status: p.status ?? 'ACTIVE',
+      hsnCode: GST[p.code]?.[0] ?? '',
+      gstRate: GST[p.code]?.[1] ?? 18,
       variants: combinations(p.options).map((options) => {
         const soldOut = p.soldOut?.some((o) => sameOptions(o, options)) ?? false;
         return {

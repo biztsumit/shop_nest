@@ -6,6 +6,7 @@ import { EmailQueue } from '../email/email-queue.js';
 import { orderConfirmedMessage } from '../email/templates.js';
 import { Prisma, type Payment as PaymentRow } from '../generated/prisma/client.js';
 import { OrdersService, toOrder } from '../orders/orders.service.js';
+import { InvoicesService } from '../invoices/invoices.service.js';
 import { MetricsService } from '../metrics/metrics.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RazorpayClient, type RazorpayPayment } from './razorpay.client.js';
@@ -34,6 +35,7 @@ export class PaymentsService {
     private readonly emails: EmailQueue,
     private readonly config: ConfigService<Env, true>,
     private readonly metrics: MetricsService,
+    private readonly invoices: InvoicesService,
   ) {}
 
   // WEBHOOK: Razorpay tells us about payments itself, server to server. This is what records a
@@ -185,7 +187,10 @@ export class PaymentsService {
 
       // The usual case: the order was waiting for exactly this
       const paid = await tx.order.updateMany({ where: { id: payment.orderId, status: 'PENDING_PAYMENT' }, data: { status: 'PAID', paidAt: now } });
-      if (paid.count === 1) return 'paid';
+      if (paid.count === 1) {
+        await this.invoices.issue(tx, payment.orderId, now);   // paid and invoiced together
+        return 'paid';
+      }
 
       // Paid TOO LATE: the order expired (or was cancelled) meanwhile and its stock went back
       // on sale. If it's all still there, take it again and honour the order; if not, the
@@ -193,6 +198,7 @@ export class PaymentsService {
       // order's status, and the database lets only one of them change it.)
       if (await this.orders.retake(tx, payment.orderId)) {
         await tx.order.update({ where: { id: payment.orderId }, data: { status: 'PAID', paidAt: now, cancelledAt: null } });
+        await this.invoices.issue(tx, payment.orderId, now);
         return 'paid-late';
       }
       return 'refund';

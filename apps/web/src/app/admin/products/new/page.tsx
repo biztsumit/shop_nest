@@ -6,6 +6,7 @@ import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SelectField, TextareaField, TextField } from "@/components/ui/field";
+import { GstFields } from "../gst-fields";
 import { api, ApiRequestError, errorMessage } from "@/lib/client-api";
 import { useLoad } from "@/lib/use-load";
 import { AdminHeader } from "../../admin-shell";
@@ -34,6 +35,8 @@ export default function NewProductPage() {
       slug,
       description: form.description,
       categoryId: form.categoryId || null,
+      hsnCode: form.hsnCode ?? "",
+      gstRate: Number(form.gstRate),
       variants: [{
         options: form.optionName && form.optionValue ? { [form.optionName]: form.optionValue } : {},
         sku: form.sku || null,
@@ -78,6 +81,7 @@ export default function NewProductPage() {
             <option value="">No category</option>
             {cats?.map((c) => <option key={c.id} value={c.id}>{c.parentId ? `— ${c.name}` : c.name}</option>)}
           </SelectField>
+          <GstFields errors={fields} />
         </Card>
 
         <Card className="grid gap-4 p-5 sm:grid-cols-3">

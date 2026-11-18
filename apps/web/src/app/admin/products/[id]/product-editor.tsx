@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SelectField, TextareaField, TextField } from "@/components/ui/field";
+import { GstFields } from "../gst-fields";
 import { inputStyles } from "@/components/ui/input-styles";
 import { useToast } from "@/components/ui/toast";
 import { api, errorMessage } from "@/lib/client-api";
@@ -68,7 +69,7 @@ function Details({ product, categories, onSave }: { product: AdminProductDetail;
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.currentTarget)) as Record<string, string>;
     setBusy(true);
-    await onSave({ name: f.name, slug: f.slug, description: f.description, status: f.status as ProductStatus, categoryId: f.categoryId || null });
+    await onSave({ name: f.name, slug: f.slug, description: f.description, status: f.status as ProductStatus, categoryId: f.categoryId || null, hsnCode: f.hsnCode ?? "", gstRate: Number(f.gstRate) });
     setBusy(false);
   };
   return (
@@ -86,6 +87,7 @@ function Details({ product, categories, onSave }: { product: AdminProductDetail;
           <option value="ACTIVE">Active</option>
           <option value="ARCHIVED">Archived</option>
         </SelectField>
+        <GstFields hsnCode={product.hsnCode} gstRate={product.gstRate} />
         <Button type="submit" className="w-fit" loading={busy}>Save details</Button>
       </form>
     </Card>

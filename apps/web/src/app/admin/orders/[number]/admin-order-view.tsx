@@ -1,7 +1,7 @@
 "use client";
 
 import { adminOrderSchema, formatPrice, parseRupees, type AdminOrder } from "@shop/shared";
-import { CheckCheck, Truck, Undo2, XCircle } from "lucide-react";
+import { CheckCheck, FileDown, Truck, Undo2, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { AddressLines } from "@/components/address-form";
@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/card";
 import { TextField } from "@/components/ui/field";
 import { useToast } from "@/components/ui/toast";
 import { api, errorMessage } from "@/lib/client-api";
+import { downloadFile } from "@/lib/download";
 import { formatDateTime, formatOptions } from "@/lib/format";
 import { useLoad } from "@/lib/use-load";
 import { AdminHeader } from "../../admin-shell";
@@ -40,11 +41,25 @@ export function AdminOrderView({ number }: { number: string }) {
     }
   };
 
+  const invoice = async () => {
+    setBusy("invoice");
+    try {
+      await downloadFile(`/admin/orders/${number}/invoice`, `invoice-${number}.pdf`);
+    } catch (err) {
+      toast.show(errorMessage(err), "error");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <Link href="/admin/orders" className="text-sm text-muted hover:text-fg">← Orders</Link>
       <AdminHeader title={`Order ${order.number}`}>
         <OrderStatusBadge status={order.status} />
+        {order.paidAt && (
+          <Button variant="secondary" loading={busy === "invoice"} onClick={invoice}><FileDown className="size-4" aria-hidden /> Invoice</Button>
+        )}
         {(order.status === "PAID" || order.status === "CONFIRMED") && <Button loading={busy === "ship"} onClick={() => act("ship", "Marked as shipped; the customer was emailed")}><Truck className="size-4" aria-hidden /> Mark shipped</Button>}
         {order.status === "SHIPPED" && (
           <Button loading={busy === "deliver"} onClick={() => act("deliver", cod ? "Marked as delivered; the cash is recorded as paid" : "Marked as delivered")}>

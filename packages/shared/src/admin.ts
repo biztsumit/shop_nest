@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { gstRateSchema, hsnCodeSchema } from "./invoices.js";
 import { productStatusSchema, slugSchema, variantOptionsSchema } from "./catalog.js";
 import { paiseSchema } from "./money.js";
 import { orderSchema, orderStatusSchema, orderSummarySchema } from "./orders.js";
@@ -19,6 +20,8 @@ export const updateProductSchema = z
     description: z.string().trim().max(10_000),
     status: productStatusSchema,
     categoryId: z.uuid().nullable(),
+    hsnCode: hsnCodeSchema,
+    gstRate: gstRateSchema,
     // The whole list, in order (the first is the main photo): replaces what's there
     images: z.array(imageInput).max(20),
   })
@@ -70,6 +73,8 @@ export const adminVariantSchema = z.object({
 export const adminProductDetailSchema = adminProductSchema.omit({ category: true, imageUrl: true }).extend({
   description: z.string(),
   categoryId: z.uuid().nullable(),
+  hsnCode: z.string(),
+  gstRate: z.number(),
   images: z.array(z.object({ url: z.string(), alt: z.string() })),
   variants: z.array(adminVariantSchema),
 });

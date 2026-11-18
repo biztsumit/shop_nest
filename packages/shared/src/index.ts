@@ -18,3 +18,4 @@ export * from "./uploads.js";
 export * from "./audit.js";
 export * from "./stock-alerts.js";
 export * from "./email-preferences.js";
+export * from "./invoices.js";

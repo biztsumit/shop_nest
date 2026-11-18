@@ -127,7 +127,7 @@ export class OrdersService {
       include: {
         variant: {
           include: {
-            product: { select: { slug: true, name: true, images: { orderBy: [{ position: 'asc' }, { id: 'asc' }], take: 1, select: { url: true } } } },
+            product: { select: { slug: true, name: true, hsnCode: true, gstRate: true, images: { orderBy: [{ position: 'asc' }, { id: 'asc' }], take: 1, select: { url: true } } } },
           },
         },
       },
@@ -176,6 +176,9 @@ export class OrdersService {
         unitPrice: prices.get(line.variantId)!,
         quantity: line.quantity,
         lineTotal: prices.get(line.variantId)! * line.quantity,
+        // For the invoice: the GST rate the shopper bought at, even if the product's changes later
+        hsnCode: line.variant.product.hsnCode,
+        gstRate: line.variant.product.gstRate,
         position,
       })),
     });

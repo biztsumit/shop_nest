@@ -3,6 +3,7 @@ import { parse } from 'dotenv';
 import { FAKE_KEY_ID, FAKE_KEY_SECRET, FAKE_RAZORPAY_PORT, FAKE_WEBHOOK_SECRET } from './support/fake-razorpay.js';
 
 export const CLOUDINARY_TEST_SECRET = 'test-only-cloudinary-secret';
+export const TEST_SELLER = { legalName: 'Shop Nest Test Private Limited', gstin: '29ABCDE1234F1ZW', address: '12 MG Road, Bengaluru 560001' };
 
 // The settings end-to-end tests run with.
 // - On a developer machine: apps/api/.env.test (git-ignored), which points at a SEPARATE
@@ -39,6 +40,11 @@ export const loadTestEnv = (): Record<string, string> => {
     CLOUDINARY_CLOUD_NAME: 'shop-test',
     CLOUDINARY_API_KEY: '123456789012345',
     CLOUDINARY_API_SECRET: CLOUDINARY_TEST_SECRET,
+    // A made-up seller in Karnataka (state code 29) for the GST invoices; the GSTIN only has to be
+    // well-formed (its check character is right)
+    SHOP_LEGAL_NAME: TEST_SELLER.legalName,
+    SHOP_GSTIN: TEST_SELLER.gstin,
+    SHOP_ADDRESS: TEST_SELLER.address,
   };
 };
 

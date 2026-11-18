@@ -66,6 +66,13 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
+      # GST invoices: the seller as registered for GST, all three or all empty (= no invoices)
+      - key: SHOP_LEGAL_NAME
+        sync: false
+      - key: SHOP_GSTIN
+        sync: false
+      - key: SHOP_ADDRESS
+        sync: false
       # Observability: the metrics token is generated; Sentry is optional (leave empty = off)
       - key: METRICS_TOKEN
         generateValue: true

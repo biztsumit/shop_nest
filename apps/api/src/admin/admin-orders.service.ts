@@ -6,6 +6,7 @@ import type { Env } from '../config/env.js';
 import { EmailQueue } from '../email/email-queue.js';
 import { orderCancelledMessage, orderDeliveredMessage, orderReturnedMessage, orderShippedMessage } from '../email/templates.js';
 import type { Prisma } from '../generated/prisma/client.js';
+import { InvoicesService } from '../invoices/invoices.service.js';
 import { OrdersService, toOrder } from '../orders/orders.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -39,6 +40,7 @@ export class AdminOrdersService {
     private readonly emails: EmailQueue,
     private readonly config: ConfigService<Env, true>,
     private readonly audit: AuditService,
+    private readonly invoices: InvoicesService,
   ) {}
 
   async list({ status, search, limit, cursor }: AdminOrderListQuery): Promise<Page<AdminOrderSummary>> {
@@ -76,7 +78,7 @@ export class AdminOrdersService {
 
   async move(number: string, move: keyof typeof MOVES, actorId: string): Promise<AdminOrder> {
     const { from, to, stamp, email } = MOVES[move];
-    const current = await this.prisma.order.findUnique({ where: { number }, select: { status: true, paymentMethod: true, total: true } });
+    const current = await this.prisma.order.findUnique({ where: { number }, select: { id: true, status: true, paymentMethod: true, total: true } });
     if (!current) throw new NotFoundException('No such order');
     // Delivering a cash-on-delivery order is also when it's PAID: the courier collected the cash
     const cashCollected = move === 'deliver' && current.paymentMethod === 'COD';
@@ -88,6 +90,8 @@ export class AdminOrdersService {
         data: { status: to, [stamp]: now, ...(cashCollected ? { paidAt: now } : {}) },
       });
       if (claimed.count === 0) return false;
+      // Cash collected = paid: the GST invoice is issued now, in the same transaction
+      if (cashCollected) await this.invoices.issue(tx, current.id, now);
       await this.audit.record(tx, {
         actorId,
         action: `order.${move}`,

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isValidGstin } from '@shop/shared';
 
 // "KEY=" (an empty line in .env) means "not set"
 const emptyToUndefined = (value: unknown) => (value === '' ? undefined : value);
@@ -73,6 +74,16 @@ const envSchema = z
     CLOUDINARY_API_KEY: z.preprocess(emptyToUndefined, z.string().regex(/^\d+$/, 'must be the numeric API key').optional()),
     CLOUDINARY_API_SECRET: z.preprocess(emptyToUndefined, z.string().min(8).optional()),
 
+    // ---------- GST invoices ----------
+    // The seller on every invoice, exactly as registered for GST. All three or none: without them
+    // the shop works, but no invoices are issued. The state comes from the GSTIN.
+    SHOP_LEGAL_NAME: z.preprocess(emptyToUndefined, z.string().trim().min(2).max(200).optional()),
+    SHOP_GSTIN: z.preprocess(emptyToUndefined, z.string().trim().toUpperCase().refine(isValidGstin, 'must be a valid 15-character GSTIN (check for typos)').optional()),
+    // One line, as it should be printed: "12 MG Road, Bengaluru 560001"
+    SHOP_ADDRESS: z.preprocess(emptyToUndefined, z.string().trim().min(10).max(300).optional()),
+    // Starts every invoice number: INV → INV2627-000001 (GST allows 16 characters in all)
+    INVOICE_PREFIX: z.string().regex(/^[A-Z]{1,4}$/, 'must be 1 to 4 capital letters').default('INV'),
+
     // ---------- Observability ----------
     // GET /api/metrics (Prometheus) answers only with "Authorization: Bearer <this>". Not set:
     // the endpoint doesn't exist (404).
@@ -93,6 +104,10 @@ const envSchema = z
     const cloudinary = [env.CLOUDINARY_CLOUD_NAME, env.CLOUDINARY_API_KEY, env.CLOUDINARY_API_SECRET].filter(Boolean).length;
     if (cloudinary !== 0 && cloudinary !== 3) {
       ctx.addIssue({ code: 'custom', path: ['CLOUDINARY_API_SECRET'], message: 'CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET go together: set all three or none' });
+    }
+    const seller = [env.SHOP_LEGAL_NAME, env.SHOP_GSTIN, env.SHOP_ADDRESS].filter(Boolean).length;
+    if (seller !== 0 && seller !== 3) {
+      ctx.addIssue({ code: 'custom', path: ['SHOP_GSTIN'], message: 'SHOP_LEGAL_NAME, SHOP_GSTIN and SHOP_ADDRESS go together: set all three or none' });
     }
   })
   .transform((env) => ({ ...env, LOG_LEVEL: env.LOG_LEVEL ?? (env.NODE_ENV === 'test' ? 'silent' : 'info') }));

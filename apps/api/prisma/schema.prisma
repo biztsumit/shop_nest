@@ -59,6 +59,10 @@ model Product {
   // Deleting a category leaves its products uncategorised, never deletes them
   categoryId    String?          @map("category_id") @db.Uuid
   category      Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  // For GST invoices: the HSN code (what kind of goods; "" = not set yet) and the GST rate (%)
+  // included in its prices (CHECKs products_hsn_code_format, products_gst_rate_known)
+  hsnCode       String           @default("") @map("hsn_code") @db.VarChar(8)
+  gstRate       Int              @default(18) @map("gst_rate")
   variants      ProductVariant[]
   images        ProductImage[]
   // A SUMMARY of the variants, kept up to date by a database trigger (see the migration
@@ -318,6 +322,7 @@ model Order {
   couponRedemption CouponRedemption?
   payment          Payment?
   refunds          Refund[]
+  invoice          Invoice?
 
   @@unique([userId, idempotencyKey])
   // "My orders", newest first
@@ -343,6 +348,10 @@ model OrderItem {
   unitPrice   Int             @map("unit_price")
   quantity    Int
   lineTotal   Int             @map("line_total")
+  // Copied from the product when the order is placed, like the price: the invoice (issued when
+  // it's paid, maybe days later) uses the rate the shopper bought at
+  hsnCode     String          @default("") @map("hsn_code") @db.VarChar(8)
+  gstRate     Int             @default(18) @map("gst_rate")
   position    Int             @default(0)
 
   @@index([orderId])
@@ -565,4 +574,32 @@ model StockAlert {
   // The job: "waiting alerts" (notified_at IS NULL), by variant
   @@index([notifiedAt, variantId])
   @@map("stock_alerts")
+}
+
+// A GST invoice, issued in the same transaction that makes the order paid (online payment
+// captured, or cash collected on delivery). `data` is the whole invoice as issued (seller,
+// buyer, lines, taxes: see invoiceSchema in @shop/shared): it never changes afterwards, so the
+// PDF reads the same years later. Append-only in the database (trigger in *_gst_invoices).
+model Invoice {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  orderId       String   @unique @map("order_id") @db.Uuid
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  number        String   @unique @db.VarChar(16) // "INV2627-000001"
+  financialYear String   @map("financial_year") @db.Char(7) // "2026-27"
+  serial        Int // 1, 2, 3... within the financial year, never skipped or reused
+  issuedAt      DateTime @map("issued_at") @db.Timestamptz(3)
+  data          Json
+
+  @@unique([financialYear, serial])
+  @@map("invoices")
+}
+
+// The last invoice serial used in each financial year. Taking the next one LOCKS the row
+// (UPDATE ... RETURNING) until the transaction ends, so numbers come out in order with no gaps:
+// a transaction that fails gives its number back.
+model InvoiceCounter {
+  financialYear String @id @map("financial_year") @db.Char(7)
+  last          Int
+
+  @@map("invoice_counters")
 }

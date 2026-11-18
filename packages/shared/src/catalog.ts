@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { gstRateSchema, hsnCodeSchema } from "./invoices.js";
 import { paiseSchema } from "./money.js";
 import { ratingSummarySchema } from "./reviews.js";
 
@@ -62,6 +63,9 @@ export const createProductSchema = z.object({
   description: z.string().trim().max(10_000).default(""),
   status: productStatusSchema.default("DRAFT"),
   categoryId: z.uuid().nullable().default(null),
+  // For GST invoices: what kind of goods (HSN code) and the GST rate (%) included in its prices
+  hsnCode: hsnCodeSchema.default(""),
+  gstRate: gstRateSchema.default(18),
   // Every product needs at least one variant: it's what is actually bought
   variants: z.array(createVariantSchema).min(1, "add at least one variant").max(100),
   images: z
